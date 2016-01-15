@@ -1,0 +1,170 @@
+﻿<html>
+	<head>
+		<title>AA-Maps Prototype</title>
+		<meta charset="utf-8" />
+		<link rel="stylesheet" href="script/leaflet/leaflet.css" />
+		<link rel="stylesheet" type="text/css" href="script/jqplot/jquery.jqplot.css" />
+		<link rel="stylesheet" href="script/jquery/jquery-ui.css" />
+		<link rel="stylesheet" href="script/leaflet/leaflet.draw.css" />
+		<link rel="stylesheet" href="script/leaflet/leaflet.contextmenu.css" />
+		<link rel="icon" type="image/gif" href="favicon.ico"/>
+		
+		
+		<script src="script/color/viridis.json"></script>
+		<script src="script/color/inferno.json"></script>
+		<script src="script/color/magma.json"></script>
+		<script src="script/color/plasma.json"></script>
+		<script src="script/color/chroma.js"></script>
+		<script src="script/leaflet/leaflet-src.js"></script>
+		<script type="text/javascript" src="script/leaflet/leaflet.js"></script>
+		<script src="script/leaflet/leaflet.draw-src.js"></script>
+		<script type="text/javascript" src="script/gisplay.js"></script>
+		<script src="script/jquery/jquery-1.9.1.min.js"></script>
+		<script src="script/jquery/jquery-ui.js"></script>
+		<script src="script/jquery/jquery-ui.min.js"></script>
+		<script src="script/foundation/foundation.js"></script>
+		<script src="script/foundation/foundation.slider.js"></script>
+		<script type="text/javascript" src="script/jscolor/jscolor.js"></script>
+		<!--<script type="text/javascript" src="https://maps.google.com/maps/api/js?sensor=false"></script>-->
+		<script src="script/leaflet-0.6.4/Google.js"></script>
+		<script src="script/jquery/jquery.sparkline.js"></script>
+		<script type="text/javascript" src="script/sly.min.js"></script>
+		<script type="text/javascript" src="colorComponent.js"></script>
+		<script type="text/javascript" src="WebGLmapcomponent.js"></script>
+		<script type="text/javascript" src="timeseriescomponent.js"></script>
+		<script type="text/javascript" src="timeComponent.js"></script>
+		<script type="text/javascript" src="normFunctions.js"></script>
+		<script type="text/javascript" src="script/geostats.js"></script>
+		<script type="text/javascript" src="script/dat-gui/dat.gui.js"></script>
+		
+	
+		<script type="text/javascript" src="script/leaflet/leaflet-search.js"></script>	
+		<script type="text/javascript" src="script/nouislider.min.js"></script>
+		<link rel="stylesheet" href="script/nouislider.min.css" rel="stylesheet">
+		<script type="text/javascript" src="script/nouislider.min.js"></script>
+		<link rel="stylesheet" href="http://leaflet.github.io/Leaflet.draw/leaflet.draw.css"/>
+		<script src="http://leaflet.github.io/Leaflet.draw/leaflet.draw.js"></script>
+		
+		<script type="text/javascript" src="script/spin.js"></script>
+		<script type="text/javascript" src="script/spin.min.js"></script>
+		<script type="text/javascript" src="script/jQDateRangeSlider-min.js"></script>
+		<script type="text/javascript" src="script/jQDateRangeSlider-withRuler-min.js"></script>
+		<link rel="stylesheet" href="script/iThing.css" type="text/css" />
+	
+		<link rel="stylesheet" href="script/leaflet.magnifyingglass.css" />
+		<link rel="stylesheet" href="script/Control.MagnifyingGlass.css" />
+		<script src="script/control_button.js"></script>
+		<script src="//cdn.jsdelivr.net/leaflet.esri/1.0.0/esri-leaflet.js"></script>
+		<script src="script/leaflet.magnifyingglass.js"></script>
+		<script src="http://maps.google.com/maps/api/js?v=3.2&sensor=false"></script>
+		<link rel="stylesheet" href="//cdn.jsdelivr.net/leaflet.esri.geocoder/1.0.2/esri-leaflet-geocoder.css">
+		<script src="//cdn.jsdelivr.net/leaflet.esri.geocoder/1.0.2/esri-leaflet-geocoder.js"></script>
+		<script src="script/three.min.js"></script>
+		<link rel="stylesheet" href="switch_style.css"></link>
+		<link rel="stylesheet" href="style.css"></link>
+		
+
+		<script>
+			$(function() {welcomeDialog();});
+			$(document).ready(function() {init();});
+		</script>
+	</head>
+<body class="tundra">
+	<div id="map"></div>
+	<div id="header" class="transparent">
+		<div id="title">
+			<img src="script/images/logo.png" alt="AAMaps" id="logo">
+			<p>AAMaps Prototype</p>
+		</div>
+		<a id="options-button" class="button blue" onclick="hideOptions()" title="Press 5">
+			<img src="script/images/opt.png" border="0">
+			<span style="">Options</span>
+		</a> 
+		<a id="about-button" class="button blue" onclick="aboutMessage();" title="Press 4">
+			<img src="script/images/info2.png" border="0">
+			<span style="">About</span>
+		</a>
+		<a id="reset-button" class="button blue" onclick="clearPoints();" title="Press 3">
+			<img src="script/images/reset.png" border="0">
+			<span style="">Clear Map</span>
+		</a>	
+		<a id="show-button" class="button blue" onclick="showPoints();" title="Press 2">
+			<img src="script/images/marker3.png" border="0">
+			<span style="">Pin Events</span>
+		</a>
+		<section class="blue">
+			<p>AA-Maps</p>
+			<a class="switch on" rel="external" href="#" id="aamaps-button" title="Press 1" onclick="toggleVizMode()">&#xF011;</a>
+		<span></span>
+		</section>
+	</div>
+	<!--<div class="frame">
+    <ul class="slidee">
+        <li>aaa</li> // Item
+        <li>sss</li> // Item
+        <li>ss</li> // Item
+    </ul>
+</div>
+<div class="scrollbar">
+    <div class="handle"></div>
+</div>-->
+	<canvas id="canvas" width="70" height="70"></canvas>
+	<div id="dialog">
+		<p> Loading events...</p><br><br>
+	</div>
+	
+	<div id="dialog-message" title="AA-Maps Prototype">
+		<p class="bold">Welcome to AA-Maps Prototype!</p>
+		<p>In the left panel, you have the AA-Maps technique components that you must choose in order to see the events on the map.</p>
+		<p>In the bottom, you have the time slider to adjust the time range for you analysis.</p>
+		<p>Enjoy you ride!</p>
+	</div>
+	
+	<div id="dialog-about" title="About AA-Maps">
+		<p class="bold">AA-Maps Prototype Version 1.0</p>
+		<p class="bold">Author: Catarina Albino, Nº 42181</p>
+		<div id="bg">
+			<div id="text">
+				<p>This prototype is being developed in the context of my Msc. Thesis and it was used in IPM course as well.</p>
+				<p>In what concerns the interface, this version is a preliminary approach because the focus on my work is the
+				development of AA-Maps visualization technique. So the interface is going to be further developed and more functionalities 
+				will be added in time.</p>
+			</div>
+			<div id="about-logo">
+				<img src="script/images/logo.png" alt="AAMaps"/>
+			</div>
+		</div>
+	</div>
+
+	<div id="time_container" onmouseover="show_div(this)">
+		<!--id="pin-button" class="button blue" onclick="pinTime">
+			<img src="script/images/pin.png" border="0">
+		</a>-->
+		<div id="time_slider">
+		</div><br>
+	</div>
+</div>
+	
+	<select id="TLOD" onchange="changeTLODoptions(this)">
+		<option value="days" selected>Day</option>
+		<option value="weeks">Week</option>
+		<option value="months">Month</option>	
+		<option value="years">Year</option>			
+	</select>
+	<select id="SLOD" onchange="changeSLODoptions()">
+		<option value="grid" selected>Grid</option>
+		<option value="polygon">Polygon</option>		
+	</select>
+	<select id="grid_size" onchange="changeGridSize()">
+		<!--<option value="_1" selected>1</option>-->
+		<option value="_1024">1024</option>
+		<option value="_2048"selected>2048</option>
+		<option value="_32768">32768</option>				
+	</select>
+	<!--<select id="polygon_size">
+		<option value="_freguesias" selected>Freguesia</option>
+		<option value="_concelhos">County</option>
+		<option value="_distritos">District</option>		
+	</select>-->
+</body>
+</html>
