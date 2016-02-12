@@ -45,11 +45,26 @@ function showLoadingDialog(spinner){
 	$("#time_container").attr("disabled", "disabled");
 }
 
+
 function hideLoadingDialog(spinner){
 	spinner.stop();
 	$("#dialog").dialog("destroy");
 	$("#time_container").removeAttr("disabled");
 }
+
+function showErrorDialog(){
+	$("#dialog-error").dialog({
+		draggable: false,
+		position: { my: 'top', at: 'top+150' },
+		resizable: false,
+		closeOnEscape: false
+	});
+
+	//$("#dialog-error").dialog("close");
+}
+
+
+
 
 function overlay() {
 	el = document.getElementById("overlay");
@@ -350,9 +365,4 @@ function convertDate(date) {
 	if (date!=null) return date.getFullYear() + "-" + pad((date.getMonth()+1)) + "-" + pad((date.getDate()));
 	return null;
 }
-
-
-
-
-
 

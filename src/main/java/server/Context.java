@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import aa_maps.AAMaps;
+import accum_functions.IAccumFunc;
 
 import com.vividsolutions.jts.geom.Polygon;
 
@@ -16,7 +17,7 @@ public class Context implements Serializable {
 	private static final String GRAIN = "year";
 	private static final boolean AAMAPSOFF = false;
 	
-	private int gridSize, attenFunction;
+	private int gridSize, attenFunctionID, accumFunctionID;
 	private String tableToRead, spatialDataTable, timeDataTable;
 	private Loader loader;
 	private boolean isRestricted;
@@ -38,6 +39,7 @@ public class Context implements Serializable {
 		this.gridsMetaInfo = new HashMap<Integer, double[]>();
 	}
 	
+	
 	public Context() {
 		this.timeGranularity = GRAIN;
 		this.aamaps = AAMAPSOFF;
@@ -56,9 +58,19 @@ public class Context implements Serializable {
 		return this.map;
 	}
 	
-	public void initMap(String dateInit, String dateEnd, ArrayList<String> dates, int gridSize, int attenFunction) {
-		this.attenFunction = attenFunction;
-		this.map.initMap(dateInit, dateEnd,dates,gridSize, attenFunction);
+	public int getAccumFunc(){
+		return accumFunctionID;
+	}
+	
+	public void setAccumFunc(int accumF){
+		this.accumFunctionID = accumF;
+	}
+	
+	public void initMap(String dateInit, String dateEnd, ArrayList<String> dates, int gridSize, 
+					int attenFunction, int accumFunction) {
+		this.attenFunctionID = attenFunction;
+		this.accumFunctionID = accumFunction;
+		this.map.initMap(dateInit, dateEnd,dates,gridSize, attenFunction, accumFunction);
 	}
 	
 	public void setGridInfo(int gridSize, double leftx, double lefty, double width) {
@@ -79,11 +91,11 @@ public class Context implements Serializable {
 	
 	
 	public void setAttenFunction(int attenFunction) {
-		this.attenFunction = attenFunction;
+		this.attenFunctionID = attenFunction;
 	}
 	
 	public int getAttenFunction() {
-		return attenFunction;
+		return attenFunctionID;
 	}
 	
 	

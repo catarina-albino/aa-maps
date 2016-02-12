@@ -24,7 +24,6 @@ public class ContextResource {
 		context.setTableToRead(tableName);
 		context.setGridSize(gridSize);
 		context.setAttenFunction(attenFunction);
-		System.out.println("ooookk");
 		//context.setAccumFunction();
 		
 		double[] gridInfo = context.getLoader().

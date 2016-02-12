@@ -1,4 +1,5 @@
 //Global Variables
+var magnifierMap = 'http://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
 var log;
 var aamaps = true, fixed = true;
 var data; //data is an array of points (longitude, latitude)
@@ -10,8 +11,6 @@ var shape = "circle", geom = "point";
 var pointSize = 4;
 var shapes = ['circle', 'square'];
 var opacityFunctions = ['Fixed', 'X/XMax', 'Range', 'Z-Score', '75% Percentil'];
-var attenuationFunctions = ['Linear','None','Exponential','Hal-Life'];
-var accumulationFunctions = ['Sum', 'Max', 'Min', 'Average'];
 var accidentsPT = {name:'Accidents (PT)', table:'accidents_portugal'};
 var datasets = [accidentsPT];
 var datasetDefault = "Indíce Gravidade (IG)";
@@ -20,17 +19,21 @@ var table;
 var timeLODs = ['days', 'weeks', 'months', 'years'];
 var spaceLODs = ['grid','polygon'];
 
-var attenFunction = 0;
+var guiParams;
+var attenFunction = 0, accumFunction = 0;
+var contextChanged = false;
 
 //Connection variables to the server
 var myip = "http://localhost";
 var myport = "8080";
 
+
 //Visual variables
 var color;
+var decayConst = 5; 
 var pointOptions;
 var defaultColor = "ffff00";
-var opacity = 0.5;
+var opacity = 0.3;
 var numberFeatures = 0;
 
 //Restricted Area
@@ -38,8 +41,9 @@ var isRestricted = false;
 var geometryRestriction;
 var timeLOD, spaceLOD, gridSize, polygonSize;
 var dateSlider = document.getElementById('time_slider');
-var gui, params, colorFolder, log;
+var gui, params, log;
 var fromDate, endDate;
+var attenFolder, accumFolder, colorFolder = null, aaColorFolder = null, logFolder = null;
 
 
 
@@ -107,6 +111,7 @@ function gisDraw(){
 	gis.draw();
 }
 
+
 function clearPoints(){
 	$("#reset-button").attr('disabled', true);
 	resetFields();
@@ -135,6 +140,7 @@ function init_map() {
 		$("#map").empty();
 		map = null;
 	} 
+
 	map = new L.Map('map', {center: new L.LatLng(39.5, -8), 
 		zoom: defaultZoom,
 		contextmenu: true,
@@ -158,16 +164,10 @@ function init_map() {
 		edit : false
 	});
 
-	var searchControl = L.esri.Geocoding.Controls.geosearch({
-		useMapBounds: false
-	}).addTo(map);
-
-	// Share the same tile url...
-	var tileUrl = 'http://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
-	var magnifiedTiles = L.tileLayer(tileUrl);
-	
+	var searchControl = L.esri.Geocoding.Controls.geosearch({useMapBounds: false}).addTo(map);
+	var magnifiedTiles = L.tileLayer(magnifierMap);
 	var magnifyingGlass = L.magnifyingGlass({
-		zoomOffset: 4,
+		zoomOffset: 3,
 		layers: [magnifiedTiles]
 	});
 
@@ -178,7 +178,9 @@ function init_map() {
 	var results = L.layerGroup().addTo(map);
 	searchControl.on('results', function(data){});
 	color = hexToRgb('#'+defaultColor);
-	
+	$('.leaflet-magnifying-glass-webkit leaflet-container').bind( "click", function() {
+		  alert( "clicked" );
+	});
 	initGIS();
 }
 
@@ -187,13 +189,15 @@ function init_map() {
 function drawCanvas(geojson) {
 	points = geojson;
 	numberFeatures = points.features.length;
-	igs = new Array();
-	$.each(points.features, function(i,feature){
-		igs.push(feature.effect);
-	});
-	initCollection(igs);
-	if (aamaps) AAMapsOpacity();
-	else redrawPoints();
+	if (numberFeatures != 0) {
+		igs = new Array();
+		$.each(points.features, function(i,feature){
+			igs.push(feature.effect);
+		});
+		initCollection(igs);
+		if (aamaps) AAMapsOpacity();
+		else redrawPoints();
+	}
 }
 
 
@@ -212,9 +216,16 @@ function getGeoJSON(url) {
 			map.on('move', gisDraw);
 			var finishRequest_time = performance.now();
 			hideLoadingDialog(spinner);
-			addMessage("	" + numberFeatures + " Points Loaded", Math.round(finishRequest_time - start_time)/1000);
-			addMessage("\tMaxIG = " + getMax() + "\n	MinIG = " + getMin() + 
+			if (numberFeatures==0) {
+				gis.clear();
+				showErrorDialog();
+				addMessage("	No points to show.");
+			}
+			else {
+				addMessage("	" + numberFeatures + " Points Loaded", Math.round(finishRequest_time - start_time)/1000);
+				addMessage("\tMaxIG = " + getMax() + "\n	MinIG = " + getMin() + 
 					"\n\tMeanIG = " + Math.round(getMean()*100) / 100 );
+			}
 		});
 	}
 }
@@ -251,6 +262,7 @@ function redrawPoints(){
 	gis.draw();
 }
 
+
 function hexToRgb(hex) {
 	r = parseInt(hex.substring(1,3), 16) / maxColor;
 	g = parseInt(hex.substring(3,5), 16) / maxColor;
@@ -271,16 +283,19 @@ function init() {
 	bindTimeEvents();
 	createOptionsPanel();
 	changeSLODoptions();
-	$("li.title").bind("click", function (event) {
-		$(this).siblings("li").toggle();
-	});
-	$("#reset-button").attr('disabled', true);
+	getAccumFunctions();
 	toggleHeaderBackground();
 	getLimitDates();
 	getTimeRange();
 	resetFields();
 	init_map();
 	zoomMap = map.getZoom();
+	$("li.title").bind("click", function (event) {
+		$(this).siblings().toggle();	
+	});
+	$("#reset-button").attr('disabled', true);
+	$('#map div.leaflet-bottom.leaflet-right > div').hide();
+	bindOnChangeAAF(attenFunction, accumFunction);
 };
 
 
@@ -323,7 +338,7 @@ function toggleAAMaps() {
 	});
 }	
 
-var guiParams = function() {
+guiParams = function () {
 	this.EffectMetric = datasets[0].name;
 	this.TimeGranularity = timeLODs[0];
 	this.SpaceGranularity = spaceLODs[0];
@@ -333,20 +348,12 @@ var guiParams = function() {
 	this.A = a;
 	this.NClasses = classes;
 	this.ColorScheme = schemaNames[0];
-	this.OpacityFunctions = opFunctionNames[0];
+	this.OpacityFunctions = "";
 	this.Opacity = opacity;
 	this.Function = opacityFunctions[0];
-	this.AttenFunctions = attenuationFunctions[0];
-	this.AccumFunctions = accumulationFunctions[0];
+	this.AttenConstant = decayConst;
 };
 
-
-
-
-
-function show_div(Fdiv) {
-	$(Fdiv).show();
-}
 
 function updatePointSize(value){
 	pointSize = value;
@@ -358,6 +365,12 @@ function updateOpacity(value){
 	redrawPoints();
 }
 
+function updateAttenConstant(value){
+	decayConst = value;
+	redrawPoints();
+}
+
+
 function updateShape(value){
 	shape=value.toLowerCase();
 	redrawPoints();
@@ -366,23 +379,27 @@ function updateShape(value){
 
 function createOptionsPanel() {
 	params = new guiParams();
-	gui = new dat.GUI({resizable : false,
-						width : 290,
-						height : 850});
+	gui = new dat.GUI({resizable : false, width : 320});
 	addDatasetFolder();
+	attachCustomFields();
 	addPointFolder();
-	addBaseColorFolder();
+	addAAColorFolder();
 	if (aamaps) attachAAMapsFields(4);
 	else addColorFolder();
 	addLogFolder();
-	attachCustomFields();
 	$( "div.dg.ac > div >" ).remove( ".close-button" );
 };
 
 
 function addLogFolder(){
-	var f5 = gui.addFolder('Log');
-	f5.open();
+	logFolder = gui.addFolder('Log');
+	$('body > div.dg.ac > div > ul > li:last-child').attr('id', 'log_folder');
+	var logSection = '<li id="log-section"><div id="logArea">' +
+	'<textarea id="log" rows="6" cols="35" readonly>'+
+	'<input type="button" value="Reset" onclick="clearLog()"/>'+
+	'</textarea></div></li>';
+	$('.dg.ac li:last-child > div > ul').append(logSection); 
+	logFolder.open();
 }
 
 
@@ -410,34 +427,31 @@ function addPointFolder() {
 }
 
 
-function addBaseColorFolder() {
-	colorFolder = gui.addFolder('Color Options');
-	colorFolder.add(params, 'NClasses', 1, 7).step(1).onFinishChange(function(value) {
+function addAAColorFolder() {
+	aaColorFolder = gui.addFolder('AA Color Options');
+	aaColorFolder.add(params, 'NClasses', 1, 7).step(1).onFinishChange(function(value) {
 		classes = value;
 		redrawPoints();
 	});
-	var opacityFunctions = colorFolder.add(params,'OpacityFunctions',opFunctionNames).onChange(function(value) {
-		opacityFunction(value.toLowerCase());
-		redrawPoints();
-	});
-	colorFolder.add(params, 'A', 0.1, 1).step(0.1).onFinishChange(function(value) {
+	$('body > div.dg.ac > div > ul > li:last-child').attr('id', 'aa_color_folder');
+	aaColorFolder.add(params, 'A', 0.1, 1).step(0.1).onFinishChange(function(value) {
 		a = value;
-		redrawPlot();
 		redrawPoints();
 	});
-	
-	$('body > div.dg.ac > div > ul > li:nth-child(3)').attr('id', 'color_folder');
-	$('body > div.dg.ac > div > ul > li:nth-child(3)').append(canvas);
-	colorFolder.open();
+	createOpacitySly();
+	$('#aa_color_folder > div.dg > ul').append($('#opacitySlider'));
+	addNCanvas();
+	aaColorFolder.open();
 }
 
 
 function addColorFolder() {
-	colorFolder = gui.addFolder('Color Options');
+	colorFolder = gui.addFolder('Basic Color Options');
 	var colorPicker = colorFolder.addColor(params, 'Color').onChange(function(value) {
 	color = hexToRgb(value);
 	redrawPoints();
 	});
+	$('body > div.dg.ac > div > ul > li:last-child').attr('id', 'color_folder');
 	colorFolder.add(params, 'Opacity', 0, 1).step(0.1).onFinishChange(function(value) {
 		updateOpacity(value);
 	});
@@ -446,33 +460,32 @@ function addColorFolder() {
 	colorFunction.onFinishChange(function(value) {
 		changeEffect(value);
 	});
-	$('body > div.dg.ac > div > ul > li:nth-child(3) .slider').attr('id', 'color_slider');
+	$('body > div.dg.ac > div > ul > li:last-child .slider').attr('id', 'color_slider');
 	colorFolder.open();
 }
 
 
 function addAttenuationFolder(pos) {
 	var atten = gui.addFolder('Attenuation Functions');
-	var attFunctions = atten.add(params,'AttenFunctions', attenuationFunctions);
-	attFunctions.name('Attenuation Function');
-	attFunctions.onFinishChange(function(value) {
-		attenFunction = document.getElementById("attenuation").selectedIndex;
+	$('body > div.dg.ac > div > ul > li:nth-child('+pos+')').attr('id', 'atten_folder');
+	atten.add(params, 'AttenConstant', 1, 10).step(1).onFinishChange(function(value) {
+		updateOpacity(value);
 		getTimeSeries();
 	});
-	$('body > div.dg.ac > div > ul > li:nth-child('+pos+') > div > ul > li.cr.string > div > div > select').attr('id', 'attenuation');
-	$('#attenuation').find("option:gt(1)").attr('disabled', 'disabled');
+	createAttenSly();
+	$('#atten_folder > div.dg > ul').append($('#attenSlider'));
 	atten.open();
 }
 
 
 function addAccumulationFolder(pos) {
 	var accum = gui.addFolder('Accumulation Functions');
-	var accFunctions = accum.add(params,'AccumFunctions', accumulationFunctions);
-	accFunctions.name('Accum. Function');
-	$('body > div.dg.ac > div > ul > li:nth-child('+pos+')  > div > ul > li.cr.string > div > div > select').attr('id', 'accumulation');
-	$('#accumulation').find("option:gt(0)").attr('disabled', 'disabled');
+	$('body > div.dg.ac > div > ul > li:nth-child('+pos+')').attr('id', 'accum_folder');
+	createAccumSly();
+	$('#accum_folder > div.dg > ul').append($('#accumSlider'));
 	accum.open();
 }
+
 
 
 function changeEffect(value) {
@@ -497,16 +510,7 @@ function attachCustomFields(){
 	SLOD_div.appendChild($('#grid_size')[0]);
 	$('.dg div:nth-child(1) li:nth-child(3) > div > div')[0].appendChild($('#TLOD')[0]); //Add TLOD select
 	$("#SLOD option:first").siblings().attr("disabled","disabled");
-	createLogSection();
-}
-
-
-function createLogSection(){
-	var logSection = '<li id="log-section"><div id="logArea">' +
-	'<textarea id="log" rows="6" cols="35" readonly>'+
-	'<input type="button" value="Reset" onclick="clearLog()">'+
-	'</textarea></div></li>';
-	$('.dg.ac li:last-child > div > ul').append(logSection); 
+	
 }
 
 
@@ -516,11 +520,16 @@ $('#log').on('shown', function (e, editable) {
     editable.input.$input.closest('.control-group').find('.editable-buttons').append('<br><button class="btn btn-clear"><i class="icon-trash"></i></button>');
 });
 
+
 $('body').on('click', '.editable-buttons > .btn-clear', function (e) {
     $(this).closest('.control-group').find('.editable-input >textarea').val('');
     return false
 });
 
+
+function show_div(Fdiv) {
+	$(Fdiv).show();
+}
 
 
 function attachAAMapsFields(pos){
@@ -539,40 +548,45 @@ function resetFields(){
 
 function toggleVizMode(){
 	$('#aamaps-button').toggleClass('on');
-	//toggleCanvas();
+	var panel = $('.dg.main > ul');
+	logFolder = $('#log_folder').detach();
 	if (aamaps) {
 		aamaps = false;
 		fixed = true;
-		gui.removeFolder('Color Options');
-		gui.removeFolder('Attenuation Functions');
-		gui.removeFolder('Accumulation Functions');
-		addColorFolder();
+		addAAFolders();
+		panel.append(colorFolder);
 	}
 	else {
 		aamaps = true;
 		fixed = false;
-		gui.removeFolder('Color Options');
-		addBaseColorFolder();
-		attachAAMapsFields(5);
-		$('body > div.dg.ac > div > ul > li:nth-child(4)').append(canvas);
+		addBasicFolders();
+		panel.append(aaColorFolder);
+		panel.append(attenFolder);
+		panel.append(accumFolder);
 	}
-	retachLog(gui);
+	$('.dg.ac li:last-child > div > ul').append(logFolder);
 	gis.clear();
 	getTimeSeries();
 }
 
 
-function retachLog(gui){
-	var log = $('#log-section').detach();
-	gui.removeFolder('Log');
-	addLogFolder(); 
-	$('.dg.ac li:last-child > div > ul').append(log);
+function addAAFolders(){
+	aaColorFolder = $('#aa_color_folder').detach();
+	attenFolder = $('#atten_folder').detach();
+	accumFolder = $('#accum_folder').detach();
+	if (colorFolder===null) addColorFolder();	
+}
+
+function addBasicFolders(){
+	colorFolder = $('#color_folder').detach();
+	if (aaColorFolder===null) addAAColorFolder();
 }
 
 
 function getAAMapsValue(){
 	return aamaps;
 }
+
 
 function clearLog(){
 	log = document.getElementById("log");
@@ -599,7 +613,7 @@ function getLimitDates(){
 	//Check if the time window has change
 	if (lastTo!=null && lastFrom!=from) windowChanged = true;
 
-	if (aamaps && !windowChanged) {
+	if (aamaps && !windowChanged && !contextChanged) {
 		if (lastTo!=null && isPrevDate(lastTo,to)){
 			if (lastTo == to) from = to;
 			else from = lastTo;
@@ -652,6 +666,10 @@ function getAttenFunction(){
 	return attenFunction;
 }
 
+function getAccumFunction(){
+	return accumFunction;
+}
+
 
 function toggleHeaderBackground(){
 	$("#header").hover(function () {
@@ -677,23 +695,22 @@ function bindKeyEvents(){
 			else if (e.keyCode==53) hideOptions();
 			else if (e.keyCode==52) aboutMessage();
 			else if (e.keyCode==49) toggleVizMode();
+			addDescp();
 	});
 }
 
 function bindTimeEvents(){
 	$('#time_container').hover(function () {
 	    $(this).fadeTo(400, 1);
-	    //$(this).animate({opacity: '1'}, 300);
 	});
 	$('#time_container').mouseleave(function () {
 	    $(this).fadeTo(400, 0);
-	    //$(this).animate({opacity: '0'}, 300);
 	});
 }
 
 
 function hideOptions(){
-	$( ".dg .main" ).toggle( "fast" );
+	$( ".dg .main" ).children().toggle( "fast" );
 }
 
 
@@ -710,14 +727,11 @@ function pinTime() {
     $(this).one("click", unpinTime);
 }
 
+
 function unpinTime() {
 	$('#time_container').hide();
 	$('#time_container').on();
     $(this).one("click", pinTime);
 }
-
-$("#pin-button").one("click", pinTime);
-
-
 
 

@@ -2,45 +2,76 @@ package aa_maps;
 
 import java.util.ArrayList;
 import java.util.Hashtable;
-
-import cern.colt.function.tdouble.DoubleDoubleFunction;
-import cern.colt.function.tdouble.IntIntDoubleFunction;
+import accum_functions.*;
+import atten_functions.*;
 import cern.colt.list.tdouble.DoubleArrayList;
 import cern.colt.list.tlong.LongArrayList;
 import cern.colt.matrix.tdouble.impl.SparseDoubleMatrix2D;
 
 public class AAMaps {
 
-	private AttenuationFunctions At = AttenuationFunctions.functions;
-	private AccumulationFunctions Ac = AccumulationFunctions.functions;
-	private IntIntDoubleFunction AttenFunction;
-	@SuppressWarnings("unused")
-	private DoubleDoubleFunction AccumFunction;
 	public static int grid_dim;
-	//private long stepToSave;
 	private String lastMatrixDate, endDate;
-	@SuppressWarnings("unused")
-	private int lastAtten, curAtten, nsteps, curStep;
-	private double maxEffect, minEffect;
-	private static SparseDoubleMatrix2D curMatrix, nextMatrix;
-	@SuppressWarnings("unused")
-	private Hashtable<String, SparseDoubleMatrix2D> allMatrices;
-
 	private String dataset;
 	private ArrayList<String> dates;
-	private static final double c = 5.0;
-	//private static final double SAVEPERCENT = 0.1;
+	private IAccumFunc AccumFunction;
+	private IAttenFunc AttenFunction;
+	private ArrayList<IAccumFunc> accumFunctions;
+	private ArrayList<IAttenFunc> attenFunctions;
 	
+	@SuppressWarnings("unused")
+	private int curAttenID, curAccumID, nsteps, curStep;
+	@SuppressWarnings("unused")
+	private Hashtable<String, SparseDoubleMatrix2D> allMatrices;
+	private boolean newContext;
+	private double maxEffect, minEffect;
+	private static SparseDoubleMatrix2D curMatrix, nextMatrix;
+	//private static final double SAVEPERCENT = 0.1;
+	//private long stepToSave;
 
+	
 	public AAMaps(){
+		addAccumFunctions();
+		addAttenFunctions();
 		this.lastMatrixDate = "";
 		this.dataset = null;
-		this.lastAtten = -1;
-		this.curAtten = -1;
+		this.newContext = true;
 		this.allMatrices = new Hashtable<String,SparseDoubleMatrix2D>(); 
 		curMatrix = createMatrix();
 	}
-
+	
+	private void addAccumFunctions() {
+		int index = 0;
+		accumFunctions = new ArrayList<IAccumFunc>();
+		accumFunctions.add(new Sum(index++));
+		accumFunctions.add(new Max(index++));
+		accumFunctions.add(new Count(index++));
+		accumFunctions.add(new Min(index++));
+	}
+	
+	
+	private void addAttenFunctions() {
+		int index = 0;
+		attenFunctions = new ArrayList<IAttenFunc>();
+		attenFunctions.add(new LinearDecay(index++));
+		attenFunctions.add(new ConstantGrowth(index++));
+		attenFunctions.add(new Identity(index++));
+		attenFunctions.add(new ExponentialEaseIn(index++));
+	}
+	
+	
+	public ArrayList<IAccumFunc> getAllAccumFunctions(){
+		return accumFunctions;
+	}
+	
+	public ArrayList<IAttenFunc> getAllAttenFunctions(){
+		return attenFunctions;
+	}
+	
+	public IAccumFunc getCurAccumFunction(){
+		return AccumFunction;
+	}
+	
 
 	private void initMinMax(){
 		this.maxEffect = Integer.MIN_VALUE;
@@ -50,19 +81,18 @@ public class AAMaps {
 	/*private long calcStepToSave(){
 		return nsteps / (Math.round(SAVEPERCENT * nsteps));
 	}*/
+	
 
-
-	public void initMap(String dateInit, String dateEnd, ArrayList<String> dates, int gridSize, int attenFunction){
+	public void initMap(String dateInit, String dateEnd, ArrayList<String> dates, int gridSize, 
+					int attenFunction, int accumFunction){
 		grid_dim = gridSize;
 		nextMatrix = createMatrix();
-		this.lastAtten = this.curAtten;
-		this.curAtten = attenFunction;
 		this.endDate = dateEnd;
 		this.dates = dates;
 		this.curStep = 0;
 		this.nsteps = dates.size();
-		//this.stepToSave = calcStepToSave();
 		setAttenuationFunction(attenFunction);
+		setAccumulationFunction(accumFunction);
 	}
 	
 	public ArrayList<String> getDates(){
@@ -78,38 +108,33 @@ public class AAMaps {
 	}
 
 	public void checkChanges(){
-		if (lastAtten!=curAtten) {
+		System.out.println("\n\n"+newContext);
+		if (newContext){
 			clearPrevMatrix();
+			newContext = false;
 		}
 	}
 
-	@SuppressWarnings("static-access")
-	public void setAttenuationFunction(int number){
-		switch (number) {
-		case 0:  AttenFunction = At.constantDecay(c);
-		break;
-		case 1:  AttenFunction = At.noDecay();
-		break;
-		default: AttenFunction = At.constantDecay(c);
-		break;
-		}
+	
+	public void setAttenuationFunction(int id){
+		this.AttenFunction = attenFunctions.get(id);
+		if (curAttenID != id) newContext = true;
+		else newContext = false;
+		curAttenID = id;
 	}
 
-
-	@SuppressWarnings("static-access")
-	public void setAccumulationFunction(int number){
-		switch (number) {
-		case 0:  AccumFunction = Ac.sum;
-		break;
-		case 1:  AccumFunction = Ac.max;
-		break;
-		case 2:  AccumFunction = Ac.min;
-		break;
-		default: AccumFunction = Ac.sum;
-		break;
-		}
+	
+	public void setAccumulationFunction(int id){
+		this.AccumFunction = accumFunctions.get(id);
+		if (curAccumID != id) newContext = true;
+		else newContext = false;
+		curAccumID = id;		
 	}
-
+	
+	public IAccumFunc getAccumulationFunction(){
+		return this.AccumFunction;
+	}
+	
 
 	public boolean hasPrevMatrix(){
 		return (!lastMatrixDate.equals(""));
@@ -118,6 +143,7 @@ public class AAMaps {
 	public void clearPrevMatrix(){
 		lastMatrixDate = "";
 		initMinMax();
+		newContext = false;
 	}
 
 	public SparseDoubleMatrix2D createMatrix(){
@@ -176,20 +202,19 @@ public class AAMaps {
 	}
 
 
-	public void attenuateValues(IntIntDoubleFunction attenFunction){
-		curMatrix.forEachNonZero(attenFunction);
+	public void attenuateValues(){
+		curMatrix.forEachNonZero(AttenFunction);
 	}
 
-	public void accumulateValues(DoubleDoubleFunction accFunction){
+	public void accumulateValues(){
 		LongArrayList nextKeys = nextMatrix.elements().keys();
 		DoubleArrayList nextValues = nextMatrix.elements().values();
-
 		long[] indexes = null;
 		for (int i=0; i < nextValues.size(); i++){
 			indexes = AAMaps.get2DIndex(nextKeys.get(i));
 			int row = (int)indexes[0];
 			int column = (int)indexes[1];
-			curMatrix.setQuick(row, column, accFunction.apply(curMatrix.getQuick(row, column), nextValues.get(i)));
+			curMatrix.setQuick(row, column, AccumFunction.apply(curMatrix.getQuick(row, column), nextValues.get(i)));
 		}
 		saveCurMatrix();
 	}
@@ -203,18 +228,14 @@ public class AAMaps {
 		curStep++;*/
 	}
 
-
 	public static long[] get2DIndex(long index){
 		return new long[] {index / grid_dim, index % grid_dim};
 	}
 
-
-	@SuppressWarnings("static-access")
 	public void applyAAFunctions(){
 		/** 1 - Attenuate the previous matrix **/
-		attenuateValues(AttenFunction);
-		
+		attenuateValues();
 		/** 2 - Aggregate the 2 matrix to form the final one **/
-		accumulateValues(Ac.sum);
+		accumulateValues();
 	}
 }

@@ -8,6 +8,7 @@ var posTimeSeries;
 var dataset;
 var posInit, posEnd;
 var first = true;
+var accumF, attenF;
 
 
 function getTimeSeriesJSON(url) {
@@ -51,21 +52,19 @@ function getTimeSeries() {
 	var dates = getLimitDates();	
 	posInit = dates[0];
 	posEnd = dates[1];
-	
-	/*alert(posInit);
-	alert(posEnd);*/
+
 
 	if(!isRestricted) { 
 		requestTimeUrl = myip + ":" + myport + "/spatialdata?posInit=" + posInit + "&posEnd=" + posEnd + "&tableName=" +  dataset 
 		+ "&isRestricted=false&timeGranularity=" + getTimeLOD() + "&aamaps=" + getAAMapsValue() +  "&gridSize=" +getGridSize() 
-		+ "&attenFunction=" + getAttenFunction();
+		+ "&attenFunction=" + getAttenFunction()+"&accumFunction=" + getAccumFunction();
 		console.log("time request url: " + requestTimeUrl);
 		getGeoJSON(requestTimeUrl);
 	}
 	else {
 		requestTimeUrl = myip + ":" + myport + "/spatialdata?posInit=" + posInit + "&posEnd="+ posEnd + "&tableName=" +  dataset 
 		+ "&isRestricted=false&timeGranularity=" + getTimeLOD() + "&aamaps=" + getAAMapsValue() +  "&gridSize=" +getGridSize() 
-		+ "&attenFunction=" + getAttenFunction();
+		+ "&attenFunction=" + getAttenFunction()+"&accumFunction=" + getAccumFunction();
 		console.log("time request url: " + requestTimeUrl);
 		getGeoJSON(requestTimeUrl);
 	}
@@ -82,7 +81,6 @@ function getTimeRange(){
 
 function getTimeRangeJSON(url) {
 	$.getJSON(url, function(rangeData) {
-		console.log(rangeData);
 		setSliderDates(rangeData.range[0], rangeData.range[1]);
 	}).success(function() {
 		var timeLOD = getTimeLOD();
@@ -96,12 +94,39 @@ function getTimeRangeJSON(url) {
 			getTimeSeries();
 		}
 		else createYearTimeSlider();
-		
+
 	}).error(function(jqXHR, textStatus, errorThrown) {
 		console.log("error " + textStatus);
 	})
 }
 
+
+function getAccumFunctions(){
+	requestTimeUrl = myip + ":" + myport + "/AAFunctions";
+	console.log("AA Functions request url: " + requestTimeUrl);
+	getAccumFunctionsJSON(requestTimeUrl);
+}
+
+
+function getAccumFunctionsJSON(url) {
+	$.getJSON(url, function(functions) {
+		accumF = functions.accumFunctions;
+		attenF = functions.attenFunctions;
+		setAAFunctions();
+	}).error(function(jqXHR, textStatus, errorThrown) {
+		console.log("error " + textStatus);
+	})
+}
+
+function setAAFunctions(){
+	$.each(accumF, function() {
+		addAccumItem(this.name, this.id,this.descp);
+	});
+	$.each(attenF, function() {
+		addAttenItem(this.name, this.id,this.descp);
+	});
+	bindChangeFunction();
+}
 
 
 function setNewContext(){
@@ -112,4 +137,8 @@ function setNewContext(){
 	console.log("time request url: " + requestTimeUrl);
 }
 
+
+function getaccumFObj(){
+	return accumF;
+}
 

@@ -8,7 +8,7 @@ import javax.ws.rs.PathParam;
 
 import org.jboss.resteasy.annotations.GZIP;
 
-@Path("app")
+@Path("/app")
 public class StaticResources {
 
 	@GZIP
@@ -17,5 +17,4 @@ public class StaticResources {
 	public File load(@PathParam("file") final String filename) {
 		return new File("web_development/" + filename);
 	}
-
 }

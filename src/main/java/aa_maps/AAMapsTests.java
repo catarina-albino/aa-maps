@@ -252,10 +252,10 @@ public class AAMapsTests {
 	public static void main(String[] args) {
 		double c = 5.0;
 		int maxTime = 5, step = 2, obsTime = 4, tests = 500;
-		IntIntDoubleFunction linearOneStep = AttenuationFunctions.constantDecay(c);
+		/*IntIntDoubleFunction linearOneStep = AttenuationFunctions.constantDecay(c);
 		IntIntDoubleFunction negDecay = AttenuationFunctions.constantNegDecay(c);
 		DoubleDoubleFunction sum = AccumulationFunctions.sum;
-		DoubleDoubleFunction positiveSum = AccumulationFunctions.positiveSum;
+		DoubleDoubleFunction positiveSum = AccumulationFunctions.positiveSum;*/
 		
 		long start1 = 0, start2 = 0, end1 = 0, end2 = 0;
 
@@ -264,15 +264,16 @@ public class AAMapsTests {
 			//printAllMatrices(dayMatrices);
 
 			start1 += System.nanoTime();
-			SparseDoubleMatrix2D finalMatrix = calcAttenAccumMatrix(0, obsTime, linearOneStep, sum);
+			SparseDoubleMatrix2D finalMatrix = null; //calcAttenAccumMatrix(0, obsTime, linearOneStep, sum);
 			end1 += System.nanoTime();
 			
 			//finalMatrix.trimToSize();
 			//printMatrix (finalMatrix, "Final Normal Matrix");
 			
-			Hashtable<Integer, SparseDoubleMatrix2D[]> intermedPoints = genIntermedPoints(step, maxTime, linearOneStep, negDecay, sum);
+			Hashtable<Integer, SparseDoubleMatrix2D[]> intermedPoints = null; //genIntermedPoints(step, maxTime, linearOneStep, negDecay, sum);
 			start2 += System.nanoTime();
-			SparseDoubleMatrix2D finalOptmizedMatrix = optimizeCalcFinalMatrix(step, obsTime, sum, positiveSum,dayMatrices, intermedPoints);
+			SparseDoubleMatrix2D finalOptmizedMatrix = null; 
+			//optimizeCalcFinalMatrix(step, obsTime, sum, positiveSum,dayMatrices, intermedPoints);
 			end2 += System.nanoTime();
 			
 			//printMatrix (finalOptmizedMatrix, "Final Optim. Matrix");

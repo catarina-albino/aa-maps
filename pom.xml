@@ -14,7 +14,8 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<geotools.version>14-SNAPSHOT</geotools.version>
 	</properties>
-
+	
+    
   <dependencies>
     <dependency>
       <groupId>junit</groupId>
@@ -55,35 +56,36 @@
 			<artifactId>super-csv</artifactId>
 			<version>2.3.1</version>
 		</dependency>
+		
+		<dependency>
+			<groupId>com.google.code.gson</groupId>
+			<artifactId>gson</artifactId>
+			<version>1.7.1</version>
+  		</dependency>
+  		
+  		<dependency>
+		<groupId>org.codehaus.jackson</groupId>
+		<artifactId>jackson-mapper-asl</artifactId>
+		<version>1.9.13</version>
+	</dependency>
   </dependencies>
+  
   
   <build>
 	   <plugins>
-	    <plugin>
-	      <groupId>com.heroku.sdk</groupId>
-	      <artifactId>heroku-maven-plugin</artifactId>
-	      <version>0.4.3</version>
-	      <configuration>
-	        <appName>${heroku.appName}</appName>
-	        <processTypes>
-	          <web>java $JAVA_OPTS -cp target/classes:target/dependency/* server.Server</web>
-	        </processTypes>
-	      </configuration>
-	    </plugin>
 	    <plugin>
         	<groupId>org.apache.maven.plugins</groupId>
         	<artifactId>maven-release-plugin</artifactId>
         	<version>2.0-beta-9</version>
       </plugin>
-	    
-	    
+     
   </plugins>
 </build>
 
-<scm>
+<!-- <scm>
 	<connection>scm:git:git@github.com:catarina-albino/accidents-map-visualization.git</connection>
 	<url>scm:git:git@github.com:catarina-albino/accidents-map-visualization.git</url>
 	<developerConnection>scm:git:git@github.com:catarina-albino/accidents-map-visualization.git</developerConnection>
-</scm>
+</scm>-->
 	
 </project>

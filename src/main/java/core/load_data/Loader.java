@@ -91,7 +91,8 @@ public class Loader {
 		try {
 			st = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			st.setFetchSize(FETCH_SIZE);
-			String sql = buildInstSpatialQuery(date, context.getFromTable());
+			String sql = buildInstSpatialQuery(date, context.getFromTable(),
+					context.getAAMapsMetaInfo().getAccumulationFunction().getBDFunction());
 			//System.out.println("SQL INSTANT SPATIAL EVENTS: " + sql);
 
 			double [] gridInfo = context.getGridInfo(context.getGridSize());
@@ -129,9 +130,10 @@ public class Loader {
 			st = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			st.setFetchSize(FETCH_SIZE);
 			String sql;
-			
+
 			if (grain.equals("polygon")) sql = buildPolygonRangeSpatialQuery(dateInit, dateEnd, table);
-			else sql = buildRangeSpatialQuery(dateInit, dateEnd, table);
+			else sql = buildRangeSpatialQuery(dateInit, dateEnd, table, 
+					context.getAAMapsMetaInfo().getAccumulationFunction().getBDFunction());
 			//System.out.println("SQL RANGE SPATIAL EVENTS: " + sql);
 			double [] gridInfo = context.getGridInfo(context.getGridSize());
 			double longitud, latitude;
@@ -182,8 +184,8 @@ public class Loader {
 		return strBuilder.toString();
 	}
 
-	
-	
+
+
 	public ArrayList<String> getDaysInRange(String date1, String date2, String timeGrain) throws SQLException  {
 		Statement st;
 		ArrayList<String> dates = new ArrayList<String>();
@@ -219,37 +221,20 @@ public class Loader {
 		SparseDoubleMatrix2D finalMatrix = map.getCurMatrix();
 		finalMatrix.trimToSize();
 		map.saveComputedMatrix();
-		//int nElements = finalMatrix.cardinality();
-		//LongArrayList keys = finalMatrix.elements().keys();
-		//DoubleArrayList values = finalMatrix.elements().values();
-		//System.out.println(finalMatrix.cardinality());
-		//System.out.println(finalMatrix.elements());
-		
+
 		IntArrayList rowList = new IntArrayList(), columnList = new IntArrayList();
 		DoubleArrayList valueList = new DoubleArrayList();
-		//LongArrayList keyList = new LongArrayList();
 		finalMatrix.getNonZeros(rowList,columnList,valueList);
 		int nElements = valueList.size();
-		//System.out.println(nElements);
-		
 		double maxEffect = map.getMaxEffect(), minEffect = map.getMinEffect();
-
 		strBuilder.append(String.format(header, maxEffect, minEffect));
 		double [] gridInfo = context.getGridInfo(gridSize);
-		//boolean first = true;
-		
+
 		for (int i = 0; i < nElements; i++){
 			double curValue = valueList.get(i);
-			//if (new Double(0).compareTo(curValue) < 0){
-			//	if (!first) 
-			//		strBuilder.append(",");
-			//	first = false;
-			//	long[] indexes = AAMaps.get2DIndex(keys.get(i)); //0 - row; 1 - column
-			//	double[] coords = Functions.calcPointInGrid(gridInfo[0], gridInfo[1], indexes[0]-1, indexes[1]-1, gridInfo[2]);
-				double[] coords = Functions.calcPointInGrid(gridInfo[0], gridInfo[1], rowList.get(i), columnList.get(i), gridInfo[2]);
-				strBuilder.append(String.format(featureTemplate, coords[1], coords[0],curValue));
-				if (i < nElements-1) strBuilder.append(",");
-			//}
+			double[] coords = Functions.calcPointInGrid(gridInfo[0], gridInfo[1], rowList.get(i), columnList.get(i), gridInfo[2]);
+			strBuilder.append(String.format(featureTemplate, coords[1], coords[0],curValue));
+			if (i < nElements-1) strBuilder.append(",");
 		}	
 		strBuilder.append("]}");
 		return strBuilder.toString();
@@ -263,12 +248,14 @@ public class Loader {
 		try {
 			st = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			st.setFetchSize(FETCH_SIZE);
-			String sql = buildSumMatrixCellQuery(date,context.getFromTable());
+			String sql = buildSumMatrixCellQuery(date,context.getFromTable(), 
+					context.getAAMapsMetaInfo().getAccumulationFunction().getBDFunction());
 			//System.out.println("SQL INSTANT AAMAPS EFFECTS: " + sql);
 			ResultSet resultSet = st.executeQuery(sql);
 
 			SparseDoubleMatrix2D newMatrix = map.createMatrix();
 			while(resultSet.next()) {
+
 				effect = resultSet.getDouble(3);
 				if (resultSet.isFirst()) map.setNewMin(effect);
 				else if (resultSet.isLast()) map.setNewMax(effect);
@@ -276,7 +263,7 @@ public class Loader {
 			}
 			if (isNextMatrix==1) map.setNextMatrix(newMatrix);
 			else map.setCurMatrix(newMatrix);
-
+			
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
@@ -287,6 +274,7 @@ public class Loader {
 	// Build the effect sparse matrix for one time grain
 	public void createInstMatrix(Context context, ArrayList<String> dates, int n) {
 		boolean hasPrevMatrix = map.hasPrevMatrix();
+
 		String curDate = dates.get(n);
 		if (dates.size() == 1) {
 			if (!hasPrevMatrix) getInstAAMapEffects(context, curDate, 0);
@@ -309,7 +297,6 @@ public class Loader {
 		map = context.getAAMapsMetaInfo();
 		ArrayList<String> dates = null;
 		String prevDataset = map.getDataset();
-
 		//New dataset select: prevMatrix does not apply
 		if (prevDataset==null || !context.getFromTable().equals(prevDataset)){
 			map.clearPrevMatrix();
@@ -318,7 +305,7 @@ public class Loader {
 
 		map.checkChanges();
 		String lastDate = map.getLastMatrixDate();
-
+		//System.out.println(lastDate);
 		if (!lastDate.equals(dateInit)) map.clearPrevMatrix();
 		dates = map.getDates();
 
@@ -356,14 +343,14 @@ public class Loader {
 	/*****************************QUERY METHODS****************************/
 	/**********************************************************************/
 
-	private String buildInstSpatialQuery(String date, String tableName) {
-		String sql = "select latitude, longitud, sum(ig), time from " + tableName + " where date" + "='" + date + "'" ;
+	private String buildInstSpatialQuery(String date, String tableName, String function) {
+		String sql = "select latitude, longitud, "+function+"(ig), time from " + tableName + " where date" + "='" + date + "'" ;
 		sql += " group by latitude, longitud, time";
 		return sql;
 	}
 
-	private String buildRangeSpatialQuery(String dateInit, String dateEnd, String tableName) {
-		String sql = "select latitude, longitud, sum(ig), time from " + tableName + " where ";
+	private String buildRangeSpatialQuery(String dateInit, String dateEnd, String tableName, String function) {
+		String sql = "select latitude, longitud, "+function+"(ig), time from " + tableName + " where ";
 		sql += "date >= '" + dateInit + "' and date <='" + dateEnd + "'";
 		sql += " group by latitude, longitud, time";
 		return sql;
@@ -382,11 +369,11 @@ public class Loader {
 		return sql;
 	}
 
-	private String buildSumMatrixCellQuery(String date, String tableName) {
-		String sql = "select x, y, sum(ig), time from " + tableName + " where ";
+	private String buildSumMatrixCellQuery(String date, String tableName, String function) {
+		String sql = "select x, y, "+function+"(ig), time from " + tableName + " where ";
 		sql += "date = '" + date +"' ";
 		sql += "group by x, y, time ";
-		sql += "order by sum(ig) ASC";
+		sql += "order by "+function+"(ig) ASC";
 		return sql;
 	}
 
@@ -412,9 +399,6 @@ public class Loader {
 		sql += "'1 " + timeGrain +"'::interval) dd";
 		return sql;
 	}
-
-	/*SELECT date_trunc('day', dd):: date
-	FROM generate_series( '01/01/2007'::timestamp, '01/06/2007'::timestamp, '1 day'::interval) dd;*/
 
 
 	public static void main(String[] args) {}

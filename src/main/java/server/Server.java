@@ -6,7 +6,7 @@ import org.jboss.resteasy.plugins.server.tjws.TJWSEmbeddedJaxrsServer;
 import aa_maps.AAMaps;
 import core.Config;
 
-public class Server {
+public class Server{
 
 	public static Context context;
 	
@@ -16,13 +16,16 @@ public class Server {
 		context.setTimeDataTable("accidentes_portugal_temporalgranularity");
 	}
 	
+	
 	private static void addResources(TJWSEmbeddedJaxrsServer webServer) {
 		webServer.getDeployment().getRegistry().addPerRequestResource(StaticResources.class);
 		webServer.getDeployment().getRegistry().addPerRequestResource(SpatialDataResource.class);
 		webServer.getDeployment().getRegistry().addPerRequestResource(ContextResource.class);
 		webServer.getDeployment().getRegistry().addPerRequestResource(TimeDataResource.class);
+		webServer.getDeployment().getRegistry().addPerRequestResource(AAFunctionsResource.class);
 		webServer.addServlet("/rest-js", new JSAPIServlet());
 	}
+	
 	
 	public static void main(final String[] args) {
 		TJWSEmbeddedJaxrsServer webServer = new TJWSEmbeddedJaxrsServer();
@@ -36,6 +39,4 @@ public class Server {
 		Server.addResources(webServer);
 		System.out.print("Web server started...\n");
 	}
-	
-
 }

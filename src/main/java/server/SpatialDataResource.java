@@ -23,6 +23,7 @@ import org.jboss.resteasy.annotations.cache.Cache;
 
 @Path("spatialdata")
 public class SpatialDataResource {
+	private Context context;
 
 	public class DataResponse implements StreamingOutput {		
 		private String posInit;
@@ -38,7 +39,8 @@ public class SpatialDataResource {
 		WebApplicationException {
 
 			Writer writer = new BufferedWriter(new OutputStreamWriter(os));
-			Context context = Server.context;
+			System.out.println(posInit);
+			System.out.println(posEnd);
 			String geojson = "";
 			if (context.isAAMapsMode()){
 				//Create All Matrices in range
@@ -70,21 +72,21 @@ public class SpatialDataResource {
 	public Response getSpatial(@QueryParam("posInit") final String posInit,
 			@QueryParam("posEnd") final String posEnd, @QueryParam("tableName") final String tableName, 
 			@QueryParam("timeGranularity") final String timeGranularity, @QueryParam("aamaps") final boolean aamaps,
-			@QueryParam("gridSize") final int gridSize, @QueryParam("attenFunction") final int attenFunction) {
+			@QueryParam("gridSize") final int gridSize, @QueryParam("attenFunction") final int attenFunction,
+			@QueryParam("accumFunction") final int accumFunction) {
 		try {
-			Context context = Server.context;
+			context = Server.context;
 			context.setTimeGranularity(timeGranularity);
 			context.setTableToRead(tableName);
 			context.setGridSize(gridSize);
 			context.setAAMapsMode(aamaps);
 
-			
 			double[] gridInfo = context.getLoader().
 					getGridMetaInfo(context,context.getSpatialDataTable(), gridSize);
 			context.setGridInfo(gridSize, gridInfo[0], gridInfo[1], gridInfo[2]);
 
 			ArrayList<String> datesBD = context.getLoader().getDaysInRange(posInit, posEnd, timeGranularity);
-			context.initMap(posInit, posEnd, datesBD, gridSize, attenFunction);
+			context.initMap(posInit, posEnd, datesBD, gridSize, attenFunction, accumFunction);
 			
 			DataResponse info = new DataResponse(posInit, posEnd);
 			return Response.ok(info).build();
