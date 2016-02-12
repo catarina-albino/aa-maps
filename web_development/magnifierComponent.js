@@ -1,0 +1,1 @@
+$('.leaflet-magnifying-glass-webkit').on('click', alert("test"));
