@@ -21,7 +21,9 @@ function gisplay(id, map, options) {
 	var _webgl = { gl: null, 
 			program: null,
 			projection: null,
-			pointBuffer: null};
+			pointBuffer: null,
+			pnBuffer: null,
+			cmBuffer: null};
 	var _map = map;
 	var Library = {}; 
 
@@ -133,10 +135,10 @@ function gisplay(id, map, options) {
 			fragment_source += 'varying vec4 v_color; void main(){\n';
 			if (_options.shape == 'square'){
 				fragment_source += 'if (u_color[3] == -1.0){\n'
-				//fragment_source += 'if (v_color[3] < 0.1) discard;\n';
+				fragment_source += 'if (v_color[3] < 0.1) discard;\n';
 				fragment_source += 'gl_FragColor = v_color;}\n';
 				fragment_source += 'else{\n';
-				//fragment_source += 'if (u_color[3] < 0.1) discard;\n';
+				fragment_source += 'if (u_color[3] < 0.1) discard;\n';
 				fragment_source += 'gl_FragColor = u_color;\n}}';	
 			}
 			else {
@@ -144,10 +146,11 @@ function gisplay(id, map, options) {
 				fragment_source += 'float alpha;\n';
 				fragment_source += 'if (u_color[3] == -1.0){\n' //AAMaps Opacity
 				fragment_source += 'alpha =  v_color[3] * step(centerDist, radius);\n';
+
 				fragment_source += 'gl_FragColor = vec4(v_color[0], v_color[1], v_color[2], alpha);\n }';
 				fragment_source += 'else{\n'; //Auto Opacity*/
 				fragment_source += 'alpha =  u_color[3] * step(centerDist, radius);\n';
-				//fragment_source += 'if (alpha < 0.1) discard;\n';
+				fragment_source += 'if (alpha < 0.1) discard;\n';
 				fragment_source += 'gl_FragColor = vec4(u_color[0], u_color[1], u_color[2], alpha);\n }}';		
 			}
 		}
@@ -223,13 +226,12 @@ function gisplay(id, map, options) {
 		/*gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 		// make a framebuffer
 		var fb = gl.createFramebuffer();
-		*/ //var status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
-		//if (status == gl.FRAMEBUFFER_COMPLETE){
+		var status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+		if (status == gl.FRAMEBUFFER_COMPLETE){
 			var pixels = new Uint8Array(3);
-			//gl.readPixels(x , y , 1 , 1 , gl.GL_RGB , gl.UNSIGNED_BYTE , pixels);
 			if (pixels[0] == color[0] && pixels[1] == color[1] && pixels[2] == color[2])
 				alert("clickei");
-		//}
+		}*/
 	}
 };
 
@@ -238,13 +240,17 @@ function gisplay(id, map, options) {
 
 gisplay.prototype = {
 		
+		updateOptions: function(options) {
+			this._options = options;
+		},
+		
 		clear: function() {
 			var gl = this._webgl.gl;
 			gl.clear(gl.COLOR_BUFFER_BIT);
 		},
 		
 		points: function(data) {
-
+			
 			this._data = process_data(this._options, this.Library);
 			this._buffers = build_buffers(this._data, this._webgl, this._options);
 
@@ -274,29 +280,50 @@ gisplay.prototype = {
 
 			function build_buffers(data, webgl, options) {
 				/** Buffers to draw points
-				 *  For now we are just using one buffer. 
+				 *  For now we are using two buffers, one for showing regular points 
+				 *  and other to show the Black Dots (Pontos Negros) points. 
 				 */
 				var buffers = [];
+				var id = options.buffer;
 				var gl = webgl.gl;
-				if (webgl.pointBuffer!=null) gl.deleteBuffer(webgl.pointBuffer);
-				webgl.pointBuffer = gl.createBuffer();
-				
+				if (id == 0){
+					if (webgl.pointBuffer!=null) {
+						gl.deleteBuffer(webgl.pointBuffer);
+					}
+					webgl.pointBuffer = gl.createBuffer();
+				}
+				else if (id == 1){
+					if (webgl.pnBuffer!=null) {
+						gl.deleteBuffer(webgl.pnBuffer);
+					}
+					webgl.pnBuffer = gl.createBuffer();
+				}
+				else if (id == 2){
+					if (webgl.cmBuffer!=null) {
+						gl.deleteBuffer(webgl.cmBuffer);
+					}
+					webgl.cmBuffer = gl.createBuffer();
+				}
+
 				buffers.push(webgl.pointBuffer);
+				buffers.push(webgl.pnBuffer);
+				buffers.push(webgl.cmBuffer);
+
 				var points = new Float32Array(data);
 				var fsize = points.BYTES_PER_ELEMENT;
 				
-				gl.bindBuffer(gl.ARRAY_BUFFER, buffers[0]);
+				gl.bindBuffer(gl.ARRAY_BUFFER, buffers[id]);
 				gl.bufferData(gl.ARRAY_BUFFER, points, gl.STATIC_DRAW);
 
 				if (options.fixed) {
-					buffers[0].itemSize=2;
-					buffers[0].numItems=points.length/2;
+					buffers[id].itemSize=2;
+					buffers[id].numItems=points.length/2;
 				}
 				else {
-					buffers[0].itemSize=6;
-					buffers[0].numItems=points.length/6;
+					buffers[id].itemSize=6;
+					buffers[id].numItems=points.length/6;
 				}
-				buffers[0].fsize=fsize;
+				buffers[id].fsize=fsize;
 				return buffers;
 			}
 		},
@@ -400,26 +427,24 @@ gisplay.prototype = {
 				var vertexSizeLocation = gl.getAttribLocation(webgl.program, 'aPointSize');
 				var colorFixedLocation = gl.getUniformLocation(webgl.program, "u_color");
 				var colorVarLocation = gl.getAttribLocation(webgl.program, "a_color");
-				//var opacityLocation  = gl.getAttribLocation(webgl.program, "a_opacity");
-				
 
 				gl.vertexAttrib1f(vertexSizeLocation, pointSize);
 				var color = options.color;
 
 				if (!options.fixed){
-					gl.vertexAttribPointer(vertexCoordLocation, 2, gl.FLOAT, false, buffers[0].fsize * 6, 0);
+					gl.vertexAttribPointer(vertexCoordLocation, 2, gl.FLOAT, false, buffers[options.buffer].fsize * 6, 0);
 					gl.enableVertexAttribArray(vertexCoordLocation);
 					gl.uniform4f(colorFixedLocation, color[0], color[1], color[2], -1.0);
-			        gl.vertexAttribPointer(colorVarLocation, 3, gl.FLOAT, false, buffers[0].fsize * 6, buffers[0].fsize * 3);
+			        gl.vertexAttribPointer(colorVarLocation, 4, gl.FLOAT, false, buffers[options.buffer].fsize * 6, buffers[options.buffer].fsize * 2);
 			        gl.enableVertexAttribArray(colorVarLocation);
-					gl.drawArrays(gl.POINTS, 0, buffers[0].numItems);
+					gl.drawArrays(gl.POINTS, 0, buffers[options.buffer].numItems);
 				}
 				else {
 					gl.disableVertexAttribArray(2);
 					gl.vertexAttribPointer(vertexCoordLocation, 2, gl.FLOAT, false, 0, 0);
 					gl.enableVertexAttribArray(vertexCoordLocation);
 					gl.uniform4f(colorFixedLocation, color[0], color[1], color[2], color[3]);
-					gl.drawArrays(gl.POINTS, 0, buffers[0].numItems);
+					gl.drawArrays(gl.POINTS, 0, buffers[options.buffer].numItems);
 				}
 			}
 

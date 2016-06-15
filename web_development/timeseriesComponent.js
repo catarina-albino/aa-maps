@@ -1,5 +1,3 @@
-//Time series JSON
-var timeseriesJSON;
 var maxValues = new Array();
 var minValues = new Array();
 var posTimeSeries;
@@ -20,11 +18,6 @@ function getTimeSeriesJSON(url) {
 	});
 }
 
-function changeDataset() {
-	var selectBox = document.getElementById("grain");
-	dataset = selectBox.options[selectBox.selectedIndex].value;
-	getTimeSeries();
-}
 
 function updateMinMaxValues() {
 	for (var j = 0; j < timeseriesJSON.length; j++) {
@@ -41,9 +34,15 @@ function updateMinMaxValues() {
 
 
 function showPoints(){
-	if (first) first = false;
+	if (first || contextChanged) {
+		first = false;
+		pn = false;
+		getTimeSeries();
+	}
+	else drawCanvas(data);
+	$("#pn-button").removeClass("active");
+	$("#show-button").addClass("active");
 	$("#reset-button").attr('disabled', false);
-	getTimeSeries();
 }
 
 
@@ -53,23 +52,36 @@ function getTimeSeries() {
 	posInit = dates[0];
 	posEnd = dates[1];
 
-
-	if(!isRestricted) { 
-		requestTimeUrl = myip + ":" + myport + "/spatialdata?posInit=" + posInit + "&posEnd=" + posEnd + "&tableName=" +  dataset 
-		+ "&isRestricted=false&timeGranularity=" + getTimeLOD() + "&aamaps=" + getAAMapsValue() +  "&gridSize=" +getGridSize() 
-		+ "&attenFunction=" + getAttenFunction()+"&accumFunction=" + getAccumFunction();
-		console.log("time request url: " + requestTimeUrl);
-		getGeoJSON(requestTimeUrl);
-	}
-	else {
-		requestTimeUrl = myip + ":" + myport + "/spatialdata?posInit=" + posInit + "&posEnd="+ posEnd + "&tableName=" +  dataset 
-		+ "&isRestricted=false&timeGranularity=" + getTimeLOD() + "&aamaps=" + getAAMapsValue() +  "&gridSize=" +getGridSize() 
-		+ "&attenFunction=" + getAttenFunction()+"&accumFunction=" + getAccumFunction();
-		console.log("time request url: " + requestTimeUrl);
-		getGeoJSON(requestTimeUrl);
-	}
+	requestTimeUrl = myip + ":" + myport + "/spatialdata?posInit=" + posInit + "&posEnd=" + posEnd + "&tableName=" +  dataset 
+	+ "&isRestricted=false&timeGranularity=" + getTimeLOD() + "&aamaps=" + getAAMapsValue() +  "&gridSize=" +getGridSize() 
+	+ "&attenFunction=" + getAttenFunction()+"&accumFunction=" + getAccumFunction();
+	console.log("time request url: " + requestTimeUrl);
+	getGeoJSON(requestTimeUrl);
 }
 
+
+
+function getSGrains(){
+	requestTimeUrl = myip + ":" + myport + "/spatialgrains";
+	console.log("sgrains request url: " + requestTimeUrl);
+	getSGrainsJSON(requestTimeUrl);
+}
+
+
+function getSGrainsJSON(url) {
+	$.getJSON(url, function(data) {
+		$.each(data.grains, function (i, item) {
+		    $('#grid_size').append($('<option>', { 
+		        value: "_"+item,
+		        text : item 
+		    }));
+		});
+	$("#grid_size option:first").prop('selected','selected');
+	gridSize = $("#grid_size").val();
+	}).error(function(jqXHR, textStatus, errorThrown) {
+		console.log("error " + textStatus);
+	});
+}
 
 
 function getTimeRange(){
@@ -86,12 +98,12 @@ function getTimeRangeJSON(url) {
 		var timeLOD = getTimeLOD();
 		if (timeLOD=="day") {
 			createDayTimeSlider();
-			if (!first) getTimeSeries();
+			if (!first && !pn) getTimeSeries();
 		}
 		else if (timeLOD=="week") createWeekTimeSlider();
 		else if (timeLOD=="month") {
 			createMonthTimeSlider();
-			getTimeSeries();
+			if (!pn) getTimeSeries();
 		}
 		else createYearTimeSlider();
 
@@ -99,6 +111,7 @@ function getTimeRangeJSON(url) {
 		console.log("error " + textStatus);
 	})
 }
+
 
 
 function getAccumFunctions(){
@@ -125,6 +138,8 @@ function setAAFunctions(){
 	$.each(attenF, function() {
 		addAttenItem(this.name, this.id,this.descp);
 	});
+	//$("#attenSlider li:nth-child(2)").addClass(ative);
+	
 	bindChangeFunction();
 }
 
@@ -142,3 +157,8 @@ function getaccumFObj(){
 	return accumF;
 }
 
+function abortServerReq(){
+	if (request !== null) request.abort();
+	request = null;
+	hideLoadingDialog(spinner);
+}

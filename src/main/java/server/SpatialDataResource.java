@@ -39,8 +39,6 @@ public class SpatialDataResource {
 		WebApplicationException {
 
 			Writer writer = new BufferedWriter(new OutputStreamWriter(os));
-			System.out.println(posInit);
-			System.out.println(posEnd);
 			String geojson = "";
 			if (context.isAAMapsMode()){
 				//Create All Matrices in range
@@ -48,14 +46,18 @@ public class SpatialDataResource {
 				
 				//Get json points for the current obs moment
 				try {
+					
 					geojson = context.getLoader().getFinalAAMapEvents(context, posInit,posEnd);
 				} catch (SQLException e) {
 					e.printStackTrace();
 				}
 			}	
 			else if(posInit.equals(posEnd))
-				geojson = context.getLoader().getInstSpatialEvents(context, posInit);
-			else geojson = context.getLoader().getRangeSpatialEvents(context, posInit, posEnd, context.getTimeGranularity());
+				geojson = context.getLoader().getInstSpatialEvents(context, posInit, context.getMetric());
+			else 
+				/*geojson = context.getLoader().getRangeSpatialEvents(context, posInit, posEnd, 
+											context.getTimeGranularity(), context.getMetric());*/
+				geojson = context.getLoader().getRangeCoordSpatialEvents(context, posInit, posEnd);
 			writer.write(geojson);
 			writer.flush();
 			writer.close();

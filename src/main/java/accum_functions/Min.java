@@ -1,11 +1,16 @@
 package accum_functions;
 
+import java.util.ArrayList;
+
+import aa_maps.FuncParam;
+
 public class Min implements IAccumFunc{
 	
 	private String name = "Min";
 	private String bdFunction = "min";
 	private int id;
 	private String descp = "Uses the min value.";
+	private ArrayList<FuncParam> params;
 
 	public Min(int id){
 		this.id = id;
@@ -32,6 +37,10 @@ public class Min implements IAccumFunc{
 	
 	public String getName() {
 		return name;
+	}
+
+	public ArrayList<FuncParam> getParams() {
+		return params;
 	}
 
 }

@@ -37,7 +37,7 @@ function createOpacitySly(){
 function bindChangeFunction(){
 	attenFrame.on("active",  changeAttFunc);
 	accumFrame.on("active", changeAccFunc);
-	opacityFrame.on("active", changeOpacityF);
+	//opacityFrame.on("active", changeOpacityF);
 }
 
 
@@ -55,9 +55,17 @@ function changeAccFunc(e, index){
 	accumFunction = newF;
 }
 
+
 function onChangeAAFunc(){
-	getTimeSeries();
-	contextChanged = false;
+	if (!pn){
+		getTimeSeries();
+		contextChanged = false;
+	}
+	else {
+		contextChanged = true;
+		getConfusionMatrix();
+		contextChanged = false;
+	}
 }
 
 

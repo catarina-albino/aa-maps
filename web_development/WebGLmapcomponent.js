@@ -1,20 +1,20 @@
 //Global Variables
 var magnifierMap = 'http://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}';
 var log;
-var aamaps = true, fixed = true;
+var aamaps = true, fixed = true, pn = false, buffer = 0;
 var data; //data is an array of points (longitude, latitude)
 var gis;
-var map = null, points = null, igs = null;
+var map = null, points = null, igs = null, pontosNegros = null, cmData = null;
 var calcEffects = new Array();
 var defaultZoom = 7, maxColor = 255;
 var shape = "circle", geom = "point";
 var pointSize = 4;
 var shapes = ['circle', 'square'];
 var opacityFunctions = ['Fixed', 'X/XMax', 'Range', 'Z-Score', '75% Percentil'];
-var accidentsPT = {name:'Accidents (PT)', table:'accidents_portugal'};
-var datasets = [accidentsPT];
-var datasetDefault = "Indíce Gravidade (IG)";
-var tableDefault = "accidents_portugal";
+var dsNames = ['Accidents (PT)','Fires (PT)'];
+var dsTables = ['fires_portugal', 'accidents_portugal'];
+
+var tableName = dsTables[0];
 var table;
 var timeLODs = ['days', 'weeks', 'months', 'years'];
 var spaceLODs = ['grid','polygon'];
@@ -26,15 +26,17 @@ var contextChanged = false;
 //Connection variables to the server
 var myip = "http://localhost";
 var myport = "8080";
+var request;
 
 
 //Visual variables
+var spinner;
 var color;
 var decayConst = 5; 
 var pointOptions;
-var defaultColor = "ffff00";
-var opacity = 0.3;
-var numberFeatures = 0;
+var defaultColor = "#ffff00";
+var opacity = 0.4;
+var numberFeatures = 0, numberPNFeatures = 0;
 
 //Restricted Area
 var isRestricted = false;
@@ -61,11 +63,10 @@ function autoOpacity(){
 function xMaxOpacity(){
 	fixed = false;
 	addMessage(">> Appling x / xMax opacity...");
-	if (points == null) getTimeSeries();
-	else {
-		calcEffects = xMaxNorm();
-		redrawPoints();
-	}
+	getTimeSeries();
+	calcEffects = xMaxNorm();
+	redrawPoints();
+
 }
 
 
@@ -119,6 +120,20 @@ function clearPoints(){
 	map.off('move', gisDraw);
 	map.setZoom(defaultZoom);
 	map.panTo(new L.LatLng(39.5, -8));
+	abortServerReq();
+}
+
+
+function updateOptions(){
+	pointOptions = { 
+			geometry: geom,
+			shape: shape,
+			size: pointSize,
+			fixed: fixed,
+			buffer: buffer,
+			color: [color[0], color[1], color[2], opacity]
+	};
+	gis.updateOptions(pointOptions);
 }
 
 
@@ -128,6 +143,7 @@ function initGIS() {
 			shape: shape,
 			size: pointSize,
 			fixed: fixed,
+			buffer: buffer,
 			color: [color[0], color[1], color[2], opacity]
 	};
 	gis = new gisplay("map", map, pointOptions); 
@@ -177,9 +193,9 @@ function init_map() {
 
 	var results = L.layerGroup().addTo(map);
 	searchControl.on('results', function(data){});
-	color = hexToRgb('#'+defaultColor);
+	color = hexToRgb(defaultColor);
 	$('.leaflet-magnifying-glass-webkit leaflet-container').bind( "click", function() {
-		  alert( "clicked" );
+
 	});
 	initGIS();
 }
@@ -190,6 +206,7 @@ function drawCanvas(geojson) {
 	points = geojson;
 	numberFeatures = points.features.length;
 	if (numberFeatures != 0) {
+		
 		igs = new Array();
 		$.each(points.features, function(i,feature){
 			igs.push(feature.effect);
@@ -201,6 +218,42 @@ function drawCanvas(geojson) {
 }
 
 
+function drawPontosNegros(geojson) {
+	pontosNegros = geojson;
+	numberPNFeatures = pontosNegros.features.length;
+	if (numberPNFeatures != 0) {
+		pn = true;
+		buffer = 1;
+		redrawPN();
+	}	
+}
+
+
+function drawCMPoints(geojson) {
+	cmData = geojson;
+	if (cmData.length != 0) {
+		pn = true;
+		buffer = 2;
+		redraw();
+	}	
+}
+
+
+
+function getPNJSON(url) {
+	if(map!=null) {
+		var start_time = performance.now();
+		addMessage("************ Pontos Negros ************", undefined);
+		$.getJSON(url, function(data) {
+			var getRequest_time = new Date();
+			drawPontosNegros(data);
+			map.on('move', gisDraw);
+			var finishRequest_time = performance.now();
+			addMessage("	" + numberPNFeatures + " Pontos Negros loaded", Math.round(finishRequest_time - start_time)/1000);
+		});
+	}
+}
+
 
 function getGeoJSON(url) {
 	if(map!=null) {
@@ -208,9 +261,9 @@ function getGeoJSON(url) {
 		if (aamaps) addMessage("************ AAMaps Mode ************", undefined);
 		else addMessage("********** Visual Accum. Mode **********");
 		addMessage(">> Loading Points...", undefined);
-		var spinner = new Spinner(opts).spin();
+		spinner = new Spinner(opts).spin();
 		showLoadingDialog(spinner);
-		$.getJSON(url, function(data) {
+		request = $.getJSON(url, function(data) {
 			var getRequest_time = new Date();
 			drawCanvas(data);
 			map.on('move', gisDraw);
@@ -222,9 +275,10 @@ function getGeoJSON(url) {
 				addMessage("	No points to show.");
 			}
 			else {
-				addMessage("	" + numberFeatures + " Points Loaded", Math.round(finishRequest_time - start_time)/1000);
+				var time = Math.round(finishRequest_time - start_time)/1000;
+				addMessage("	" + numberFeatures + " Points Loaded", time);
 				addMessage("\tMaxIG = " + getMax() + "\n	MinIG = " + getMin() + 
-					"\n\tMeanIG = " + Math.round(getMean()*100) / 100 );
+					"\n\tMeanIG = " + Math.round(getMean()*100) / 100 +"\n");
 			}
 		});
 	}
@@ -235,13 +289,26 @@ function getGeoJSON(url) {
 
 function initDataBuffer() {
 	data = new Array();
-	if (fixed){
+	if (pn) {
+		if (cm){
+			for (var i = 0; i < cmData.length; i+=2) {
+				data.push(cmData[i+1],cmData[i]);
+			}
+		}
+		else{
+			for (var i = 0; i < pontosNegros.features.length; i++) {
+				var loc = pontosNegros.features[i].geometry.coordinates;
+				data.push(loc[1],loc[0]);
+			}
+		}
+	}
+	else if (fixed){
 		for (var i = 0; i < points.features.length; i++) {
 			var loc = points.features[i].geometry.coordinates;
 			data.push(loc[1],loc[0]);
 		}
 	}
-	else{
+	else if (aamaps){
 		for (var i = 0; i < points.features.length; i++) {
 			var loc = points.features[i].geometry.coordinates;
 			var palete = colorF(calcEffects[i]);
@@ -250,13 +317,32 @@ function initDataBuffer() {
 			data.push(loc[1],loc[0],color[0],color[1],color[2],opacity);
 		}
 	}
+	else {
+		color = hexToRgb(defaultColor);
+		for (var i = 0; i < points.features.length; i++) {
+			var loc = points.features[i].geometry.coordinates;
+			data.push(loc[1],loc[0],color[0],color[1],color[2],calcEffects[i]);
+		}
+	}
 }
 
 
 function redrawPoints(){
+	buffer=0;
 	if (aamaps) initColorParams(calcEffects);
-	initGIS();
+	redraw();
+}
+
+
+function redrawPN(){
+	buffer=1;
+	redraw();
+}
+
+
+function redraw(){
 	gis.clear();
+	updateOptions();
 	initDataBuffer();
 	gis.points(data); 	
 	gis.draw();
@@ -278,7 +364,7 @@ function hexToRgb(hex) {
 
 /* Load the map and init UI fields*/
 function init() {
-	drawPlot();
+	getSGrains();
 	bindKeyEvents();
 	bindTimeEvents();
 	createOptionsPanel();
@@ -295,7 +381,11 @@ function init() {
 	});
 	$("#reset-button").attr('disabled', true);
 	$('#map div.leaflet-bottom.leaflet-right > div').hide();
+	$("#pn-panel").hide();
 	bindOnChangeAAF(attenFunction, accumFunction);
+	initYear = null;
+	bindGetCMMetrics();
+	color = hexToRgb(defaultColor);
 };
 
 
@@ -332,19 +422,21 @@ function aboutMessage() {
 	});
 }
 
+
 function toggleAAMaps() {
 	$('#button').on('click', function(){
 		$(this).toggleClass('on');
 	});
 }	
 
+
 guiParams = function () {
-	this.EffectMetric = datasets[0].name;
+	this.Dataset = dsNames[0];
 	this.TimeGranularity = timeLODs[0];
 	this.SpaceGranularity = spaceLODs[0];
 	this.Shape = shapes[0];
 	this.Size = pointSize;
-	this.Color = "#"+defaultColor;
+	this.Color = defaultColor;
 	this.A = a;
 	this.NClasses = classes;
 	this.ColorScheme = schemaNames[0];
@@ -365,6 +457,7 @@ function updateOpacity(value){
 	redrawPoints();
 }
 
+
 function updateAttenConstant(value){
 	decayConst = value;
 	redrawPoints();
@@ -373,7 +466,15 @@ function updateAttenConstant(value){
 
 function updateShape(value){
 	shape=value.toLowerCase();
+	gis.clear();
 	redrawPoints();
+}
+
+
+function changeDataset(value){
+	var selectBox = document.getElementById("dataset");
+	tableName = dsTables[selectBox.selectedIndex];
+	getTimeSeries();
 }
 
 
@@ -406,13 +507,17 @@ function addLogFolder(){
 
 function addDatasetFolder() {
 	var f1 = gui.addFolder('Dataset');
-	f1.add(params, 'EffectMetric', [datasetDefault]);
+	var ds = f1.add(params, 'Dataset', dsNames).onFinishChange(function(value) {
+		changeDataset(value);
+	});
+	$('.dg.ac > div > ul > li:nth-child(1) li:nth-child(2) select').attr('id', 'dataset');
 	f1.add(params, 'TimeGranularity',[]);
 	f1.add(params, 'SpaceGranularity',[]);
 	$('.dg.ac ul > li:nth-child(1) li:nth-child(3) select').remove();
 	$('.dg.ac ul > li:nth-child(1) li:nth-child(4) select').remove();
 	f1.open();
 }
+
 
 
 function addPointFolder() {
@@ -434,13 +539,9 @@ function addAAColorFolder() {
 		redrawPoints();
 	});
 	$('body > div.dg.ac > div > ul > li:last-child').attr('id', 'aa_color_folder');
-	aaColorFolder.add(params, 'A', 0.1, 1).step(0.1).onFinishChange(function(value) {
-		a = value;
-		redrawPoints();
+	aaColorFolder.add(params, 'Opacity', 0, 1).step(0.1).onFinishChange(function(value) {
+		updateOpacity(value);
 	});
-	createOpacitySly();
-	$('#aa_color_folder > div.dg > ul').append($('#opacitySlider'));
-	addNCanvas();
 	aaColorFolder.open();
 }
 
@@ -448,8 +549,8 @@ function addAAColorFolder() {
 function addColorFolder() {
 	colorFolder = gui.addFolder('Basic Color Options');
 	var colorPicker = colorFolder.addColor(params, 'Color').onChange(function(value) {
-	color = hexToRgb(value);
-	redrawPoints();
+		color = hexToRgb(value);
+		redrawPoints();
 	});
 	$('body > div.dg.ac > div > ul > li:last-child').attr('id', 'color_folder');
 	colorFolder.add(params, 'Opacity', 0, 1).step(0.1).onFinishChange(function(value) {
@@ -555,18 +656,26 @@ function toggleVizMode(){
 		fixed = true;
 		addAAFolders();
 		panel.append(colorFolder);
+		gis.clear();
+		getTimeSeries();
 	}
 	else {
 		aamaps = true;
-		fixed = false;
+		if (pn) {
+			gis.clear();
+			getPN();
+		}
+		else {
+			fixed = false;
+			gis.clear();
+			getTimeSeries();
+		}
 		addBasicFolders();
 		panel.append(aaColorFolder);
 		panel.append(attenFolder);
 		panel.append(accumFolder);
 	}
 	$('.dg.ac li:last-child > div > ul').append(logFolder);
-	gis.clear();
-	getTimeSeries();
 }
 
 
@@ -597,7 +706,13 @@ function clearLog(){
 /* Add a new log message*/
 function addMessage(message, time) {
 	if (time === undefined) {}
-	else message = message + ' [' + time.toString() + ' s]';
+	else {
+		if (time > 60) {
+			time = Math.round(time / 60);
+			message = message + ' [' + time.toString() + ' min]';
+		}
+		else message = message + ' [' + time.toString() + ' s]';
+	}
 	log.scrollTop = log.scrollHeight;
 	log.value = log.value + message + '\n';
 }
@@ -644,8 +759,15 @@ function changeTLODoptions(){
 
 function changeGridSize(){
 	gridSize = $("#grid_size").val();
-	lastTo = null;
-	getTimeSeries();
+	if (pn) {
+		deleteCM();
+		clearCM();
+		changeYear();
+	}
+	else {
+		lastTo = null;
+		getTimeSeries();
+	}
 }
 
 function getGridSize(){
@@ -653,7 +775,7 @@ function getGridSize(){
 }
 
 function getTableName(){
-	return tableDefault+gridSize+$("#TLOD").val().toLowerCase();
+	return tableName+gridSize+$("#TLOD").val().toLowerCase();
 }
 
 function getTimeLOD(){
@@ -699,6 +821,7 @@ function bindKeyEvents(){
 	});
 }
 
+
 function bindTimeEvents(){
 	$('#time_container').hover(function () {
 	    $(this).fadeTo(400, 1);
@@ -727,11 +850,14 @@ function pinTime() {
     $(this).one("click", unpinTime);
 }
 
+function getOpacityValue(){
+	return opacity;
+}
+
 
 function unpinTime() {
 	$('#time_container').hide();
 	$('#time_container').on();
     $(this).one("click", pinTime);
 }
-
 

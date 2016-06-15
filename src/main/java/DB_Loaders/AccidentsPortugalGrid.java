@@ -28,14 +28,15 @@ public class AccidentsPortugalGrid {
 
 	private static CellProcessor[] getProcessors() {					
 		final CellProcessor[] processors = new CellProcessor[] { 
-				new NotNull(), //Datahora
-				new NotNull(), //Latitude / Longitude
+				new NotNull(), //st_astext
+				new NotNull(), //time
 				new NotNull(), //Tipos_vias	
 				new NotNull(), //F_atmosfericos	
-				new NotNull(), //Fleves	
-				new NotNull(), //Fgraves	
-				new NotNull(), //Mortos	
+				new NotNull(), //fleves		
+				new NotNull(), //fleves	
+				new NotNull(), //mortos	
 				new NotNull(), //F
+
 		};
 		return processors;
 	}
@@ -72,7 +73,7 @@ public class AccidentsPortugalGrid {
 		ICsvMapReader mapReader = null;
 		try {
 			PreparedStatement ps = connection.prepareStatement(insertStatement); 
-			mapReader = new CsvMapReader(new FileReader(fileName), CsvPreference.EXCEL_NORTH_EUROPE_PREFERENCE);
+			mapReader = new CsvMapReader(new FileReader(fileName), CsvPreference.STANDARD_PREFERENCE);
 			
 			// the header columns are used as the keys to the Map
 			final String[] header = mapReader.getHeader(true);
@@ -83,17 +84,10 @@ public class AccidentsPortugalGrid {
 
 			while( (line = mapReader.read(header, processors)) != null ) {
 				String datahora = (String) line.get("time");
-				String date = datahora.split(" ")[0];
+				String date = datahora.split(" ")[0];	
+				String[] date2 = date.split("-");
 				
-				String[] date2 = date.split("/");
 				
-				String spatialText= (String) line.get("st_astext");
-				spatialText = spatialText.replace("POINT", "");
-				String[] spatialInfo = spatialText.split(" ");
-				
-				String latitude= spatialInfo[0].replace(",", ".").replace("(", "");
-				String longitude = spatialInfo[1].replace(",", ".").replace(")", "");
-
 				String vias = (String) line.get("tipos_vias");
 				String f_atmosf = (String) line.get("f_atmosfericos");
 				String fleves = (String) line.get("fleves");
@@ -101,11 +95,19 @@ public class AccidentsPortugalGrid {
 				String mortos = (String) line.get("mortos");
 				String f = (String) line.get("f");
 				
+				String spatialText= (String) line.get("geometry");
+				spatialText = spatialText.replace("POINT", "");
+				String[] spatialInfo = spatialText.split(" ");
+				
+				String latitude= spatialInfo[0].replace("(", "");
+				String longitude = spatialInfo[1].replace(")", "");
+				
 				int IG = calcIG(Integer.parseInt(fleves), Integer.parseInt(fgraves), 
 						Integer.parseInt(mortos), Integer.parseInt(f));
 				
-				ps.setString(1, datahora);
-				ps.setString(2, date2[2]+"/"+date2[1]+"/"+date2[0]);
+				ps.setString(1, date2[2]+"/"+date2[1]+"/"+date2[0]+" "+datahora.split(" ")[1]);
+				
+				ps.setString(2, date2[0]+"-"+date2[1]+"-"+date2[2]);
 				ps.setDouble(3, Double.parseDouble(longitude));
 				ps.setDouble(4, Double.parseDouble(latitude));
 				ps.setString(5, vias);
@@ -149,7 +151,7 @@ public class AccidentsPortugalGrid {
 
 		for (int i=0; i< files.size(); i++){
 			String file = files.get(i);
-			AccidentsPortugalGrid.createTable(file.substring(0, file.lastIndexOf('.')));
+			AccidentsPortugalGrid.createTable("accidents_portugal"+file.substring(file.lastIndexOf('_'), file.lastIndexOf('.'))+"s");
 			try {
 				AccidentsPortugalGrid.insertGridData("data/grid/"+file);
 			} catch (Exception e) {

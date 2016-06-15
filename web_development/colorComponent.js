@@ -1,8 +1,9 @@
 var classes = 4;
 var limitsI, colorsI, colorF, a = 0.2, curOpIndex = 0;
 var opFunctionNames = ['EaseOut','EaseIn'];
-var opFunctions = [expEaseOutFunction,expEaseInFunction ];
+var opFunctions = [expEaseOutFunction, expEaseInFunction ];
 var opFunction=expEaseOutFunction;
+var opFunctionEnabled = false;
 var schemaNames = ['Viridis'];
 var viridis =  viridis_schema;
 var plasma =  plasma_schema;
@@ -27,22 +28,25 @@ function redrawAllPlots(){
 
 
 function initColorParams(data){
-	limitsI = chroma.limits(data, 'k', classes);
+	limitsI = chroma.limits(data, 'e', classes);
 	colorsI = buildColorVector(limitsI,palete);
 	colorF = colorFunction(colorsI, limitsI);
-	redrawPlot(curOpIndex);
 }
+
 
 
 function buildColorVector(limits, colorVector) {
-	var init_pos = 0;
+	var init_pos = 1; 
 	var length = limits.length;
 	var colors = [];
 	var step = Math.trunc((colorVector.length-init_pos)/(length - 1));
-	for (var i = init_pos; i < colorVector.length; i+=step) 
+	for (var i = init_pos; i < colorVector.length; i+=step){
 		colors.push(colorVector[i]);
+		console.log(colorVector[i]);
+	}
 	return colors;
 }
+
 
 
 function colorFunction(colorsI, limitsI) {
@@ -50,7 +54,8 @@ function colorFunction(colorsI, limitsI) {
 		var limits = limitsI;
 		var colors = colorsI;
 		var opacity = null;
-		if (name != "identity") opacity = opFunction(value);
+		if (opFunctionEnabled) opacity = opFunction(value);
+		else opacity = getOpacityValue();
 		for(var j=0; j <limits.length-1; j++) {
 			if (opacity == null) opacity = limits[j];
 			if(j+1==limits.length-1) {

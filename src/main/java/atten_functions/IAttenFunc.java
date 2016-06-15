@@ -1,5 +1,8 @@
 package atten_functions;
 
+import java.util.ArrayList;
+
+import aa_maps.FuncParam;
 import cern.colt.function.tdouble.IntIntDoubleFunction;
 
 public interface IAttenFunc extends IntIntDoubleFunction{
@@ -8,4 +11,6 @@ public interface IAttenFunc extends IntIntDoubleFunction{
 	public String getDescription();
 	public String getName();
 	public int getID();	
+	public ArrayList<FuncParam> getParams();	
+	public boolean isOn();
 }

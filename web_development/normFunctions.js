@@ -47,10 +47,13 @@ function getStdev(){
 ********************* Effect Calculation Functions **********************
 *************************************************************************/
 
+
 /**** Range Function ****/
 
 function rangeCalc(effect){
-	return (effect - min) / range;
+	var newEffect = (effect - min) / range;
+	//if (newEffect < 0.1) return 0;
+	return newEffect;
 }
 
 function rangeNorm(){

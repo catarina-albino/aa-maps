@@ -6,83 +6,25 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 
-import server.Context;
 import aa_maps.AAMaps;
 import cern.colt.list.tdouble.DoubleArrayList;
 import cern.colt.list.tint.IntArrayList;
 import cern.colt.matrix.tdouble.impl.SparseDoubleMatrix2D;
-
-import com.vividsolutions.jts.geom.Coordinate;
-import com.vividsolutions.jts.geom.Polygon;
-
 import core.Config;
-import core.shared.Table;
+import server.Context;
 
 public class Loader {
 
 	public static final int FETCH_SIZE = Config.getConfigInt("fetch_size");
 	public static final long BATCHINSERT_SIZE = Config.getConfigInt("insert_chunk_size");
 	public Connection connection = DataStoreInfo.getMetaStore();
-
-	/*private static final String POINT_WKT = "POINT(%f %f)";
-	private static final String POLYGON = "polygon";
-	private static final String POINT = "point";*/
-
-	public static Table tableToStore;
 	private AAMaps map;
 
-	public Loader(Table tabletoStore) {
-		Loader.tableToStore = tabletoStore;
-	}
+	public Loader() {}
 
-	public Loader() {
-	}
-
-	public static void setTableToStore(Table tableToStore) {
-		Loader.tableToStore = tableToStore;
-	}
-
-
-	/**
-	 * @param timeGranularity: time granularity can be year, month, day, hour, minute
-	 * @param granule: the hashcode of a given spatial granule position
-	 * @return
-	 *//**
-	 * @param timeGranularity
-	 * @param granule
-	 * @param isRestricted
-	 * @param polygon
-	 * @return
-	 */
-	public String buildQuery(String timeGranularity, String granule, boolean isRestricted, Polygon polygon) {
-		timeGranularity = timeGranularity.toUpperCase();
-		String sql = "select up_geo_hash, ";
-		String temp = timeGranularity += ",";
-		sql += temp;
-		sql += ", array_agg(ST_AsText(geometry)) as SpatialObjects, ST_AsText(up_geometry)  from " + tableToStore.getName();
-		sql += " where up_geo_hash='" + granule + "'";
-
-		if(isRestricted) {
-			sql += "and ";
-			String template = "ST_Contains(ST_GeomFromText( 'POLYGON((%s))', 4326), geometry)";
-			Coordinate[] vertexes = polygon.getCoordinates();
-
-			String sqlcoords = "";
-			for(int i = 0; i < vertexes.length; i++) {
-				sqlcoords += vertexes[i].x + " " + vertexes[i].y;
-				if (!(i == vertexes.length - 1))
-					sqlcoords += ",";
-			}
-
-			sql += String.format(template, sqlcoords);
-		}
-		sql += " group by up_geo_hash, " + temp + ", ST_AsText(up_geometry) ";
-		sql += " order by up_geo_hash, " + temp;
-		return sql;
-	}
 
 	//Method to be called by server
-	public String getInstSpatialEvents(Context context, String date) {
+	public String getInstSpatialEvents(Context context, String date, String metric) {
 		//Init json constrution
 		StringBuilder strBuilder = new StringBuilder();
 		String header= "{\"type\":\"FeatureCollection\",\"features\":[";
@@ -92,8 +34,8 @@ public class Loader {
 			st = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			st.setFetchSize(FETCH_SIZE);
 			String sql = buildInstSpatialQuery(date, context.getFromTable(),
-					context.getAAMapsMetaInfo().getAccumulationFunction().getBDFunction());
-			//System.out.println("SQL INSTANT SPATIAL EVENTS: " + sql);
+					context.getAAMapsMetaInfo().getAccumulationFunction().getBDFunction(), metric);
+			System.out.println("SQL INSTANT SPATIAL EVENTS: " + sql);
 
 			double [] gridInfo = context.getGridInfo(context.getGridSize());
 			double longitud, latitude;
@@ -117,8 +59,7 @@ public class Loader {
 
 
 	//Method to be called by server
-	public String getRangeSpatialEvents(Context context, String dateInit, String dateEnd, String grain)  {
-		//Init json constrution
+	public String getRangeSpatialEvents(Context context, String dateInit, String dateEnd, String grain, String metric)  {
 		StringBuilder strBuilder = new StringBuilder();
 		String header= "{\"type\":\"FeatureCollection\",\"features\":[";
 		String featureTemplate = "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[%s, %s]},\"effect\": %s}";
@@ -131,10 +72,10 @@ public class Loader {
 			st.setFetchSize(FETCH_SIZE);
 			String sql;
 
-			if (grain.equals("polygon")) sql = buildPolygonRangeSpatialQuery(dateInit, dateEnd, table);
+			if (grain.equals("polygon")) sql = buildPolygonRangeSpatialQuery(dateInit, dateEnd, table, metric);
 			else sql = buildRangeSpatialQuery(dateInit, dateEnd, table, 
-					context.getAAMapsMetaInfo().getAccumulationFunction().getBDFunction());
-			//System.out.println("SQL RANGE SPATIAL EVENTS: " + sql);
+					context.getAAMapsMetaInfo().getAccumulationFunction().getBDFunction(), metric);
+			System.out.println("SQL RANGE SPATIAL EVENTS: " + sql);
 			double [] gridInfo = context.getGridInfo(context.getGridSize());
 			double longitud, latitude;
 
@@ -145,6 +86,7 @@ public class Loader {
 				longitud = Double.parseDouble(resultSet.getString(2)) + gridInfo[2]/2;
 
 				if (resultSet.isFirst()) strBuilder.append(header);
+				
 				strBuilder.append(String.format(featureTemplate, latitude, longitud,resultSet.getString(3)));
 				if(!resultSet.isLast()) strBuilder.append(",");
 			}
@@ -155,6 +97,42 @@ public class Loader {
 		}
 		return strBuilder.toString();
 	}
+	
+	
+	
+	//Method to be called by server
+		public String getRangeCoordSpatialEvents(Context context, String dateInit, String dateEnd)  {
+			StringBuilder strBuilder = new StringBuilder();
+			String header= "{\"type\":\"FeatureCollection\",\"features\":[";
+			String featureTemplate = "{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[%s, %s]},\"effect\": %s}";
+			String table = context.getDefaultTable();
+			Statement st;
+
+			try {
+				st = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+				st.setFetchSize(FETCH_SIZE);
+				String sql = buildCoordRangeSpatialQuery(dateInit, dateEnd, table);
+				System.out.println("SQL COORD RANGE SPATIAL EVENTS: " + sql);
+				double [] gridInfo = context.getGridInfo(context.getGridSize());
+				double longitud, latitude;
+
+				ResultSet resultSet = st.executeQuery(sql);
+				while(resultSet.next()) {
+					//Calculate center of cell
+					latitude = Double.parseDouble(resultSet.getString(1)) + gridInfo[2]/2;
+					longitud = Double.parseDouble(resultSet.getString(2)) + gridInfo[2]/2;
+
+					if (resultSet.isFirst()) strBuilder.append(header);
+					strBuilder.append(String.format(featureTemplate, latitude, longitud, resultSet.getString(3)));
+					if(!resultSet.isLast()) strBuilder.append(",");
+				}
+				strBuilder.append("]}");
+			} catch (SQLException e) {
+				e.printStackTrace();
+				System.out.println("Database connection failed.");
+			}
+			return strBuilder.toString();
+		}
 
 
 
@@ -186,7 +164,7 @@ public class Loader {
 
 
 
-	public ArrayList<String> getDaysInRange(String date1, String date2, String timeGrain) throws SQLException  {
+	public ArrayList<String> getDaysInRange(String date1, String date2, String timeGrain) {
 		Statement st;
 		ArrayList<String> dates = new ArrayList<String>();
 		try {
@@ -202,6 +180,52 @@ public class Loader {
 			System.out.println("Database connection failed.");
 		}
 		return dates;
+	}
+
+
+	public String getSpatialGranularities(Context context) {
+		String table = context.getSpatialDataTable();
+		Statement st;
+		StringBuilder strBuilder = new StringBuilder();
+		String header= "{\"grains\": [";
+		String featureTemplate = "%s";
+
+		try {
+			st = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			st.setFetchSize(FETCH_SIZE);
+			String sql = buildSpatialGrainsQuery(table);
+			//System.out.println("SQL RANGE QUERY: " + sql);
+			ResultSet resultSet = st.executeQuery(sql);
+			while (resultSet.next()) {
+				if (resultSet.isFirst()) strBuilder.append(header);
+				strBuilder.append(String.format(featureTemplate, resultSet.getString(1)));
+				if(!resultSet.isLast()) strBuilder.append(",");
+			}
+			strBuilder.append("]}");
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.out.println("Database connection failed.");
+		}
+		return strBuilder.toString();
+	}
+
+
+	public ArrayList<Integer> getSpatialGranularitiesArray(Context context)  {
+		String table = context.getSpatialDataTable();
+		Statement st;
+		ArrayList<Integer> sgrains = new ArrayList<Integer>();
+		try {
+			st = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			st.setFetchSize(FETCH_SIZE);
+			String sql = buildSpatialGrainsQuery(table);
+			ResultSet resultSet = st.executeQuery(sql);
+			while (resultSet.next()) sgrains.add(resultSet.getInt(1));
+		} catch (SQLException e) {
+			e.printStackTrace();
+			System.out.println("Database connection failed.");
+		}
+		return sgrains;
 	}
 
 
@@ -242,14 +266,36 @@ public class Loader {
 
 
 
+	public SparseDoubleMatrix2D getCountAccidents(Context context, int year) {
+		Statement st;
+		SparseDoubleMatrix2D newMatrix = map.createMatrix();
+		try {
+			st = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			st.setFetchSize(FETCH_SIZE);
+			String sql = buildCountAccPerYearQuery(context.getFromTable(), year);
+			ResultSet resultSet = st.executeQuery(sql);
+
+			while(resultSet.next()) {
+				newMatrix.setQuick(resultSet.getInt(1)-1,  resultSet.getInt(2)-1, resultSet.getDouble(3));	
+			}
+
+		} catch (SQLException e) {
+			e.printStackTrace();
+		}
+		return newMatrix;
+	}
+
+
+
 	public void getInstAAMapEffects(Context context, String date, int isNextMatrix) {
 		Statement st;
 		double effect;
 		try {
 			st = connection.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			st.setFetchSize(FETCH_SIZE);
-			String sql = buildSumMatrixCellQuery(date,context.getFromTable(), 
-					context.getAAMapsMetaInfo().getAccumulationFunction().getBDFunction());
+			
+			String sql = buildAAMatrixCellQuery(date,context.getFromTable(), 
+					context.getAAMapsMetaInfo().getAccumulationFunction().getBDFunction(), context.getMetric());
 			//System.out.println("SQL INSTANT AAMAPS EFFECTS: " + sql);
 			ResultSet resultSet = st.executeQuery(sql);
 
@@ -259,11 +305,11 @@ public class Loader {
 				effect = resultSet.getDouble(3);
 				if (resultSet.isFirst()) map.setNewMin(effect);
 				else if (resultSet.isLast()) map.setNewMax(effect);
-				newMatrix.setQuick(resultSet.getInt(1),  resultSet.getInt(2), effect);	
+				newMatrix.setQuick(resultSet.getInt(1)-1,  resultSet.getInt(2)-1, effect);	
 			}
 			if (isNextMatrix==1) map.setNextMatrix(newMatrix);
 			else map.setCurMatrix(newMatrix);
-			
+
 		} catch (SQLException e) {
 			e.printStackTrace();
 		}
@@ -305,7 +351,6 @@ public class Loader {
 
 		map.checkChanges();
 		String lastDate = map.getLastMatrixDate();
-		//System.out.println(lastDate);
 		if (!lastDate.equals(dateInit)) map.clearPrevMatrix();
 		dates = map.getDates();
 
@@ -343,37 +388,33 @@ public class Loader {
 	/*****************************QUERY METHODS****************************/
 	/**********************************************************************/
 
-	private String buildInstSpatialQuery(String date, String tableName, String function) {
-		String sql = "select latitude, longitud, "+function+"(ig), time from " + tableName + " where date" + "='" + date + "'" ;
+	private String buildInstSpatialQuery(String date, String tableName, String function, String metric) {
+		String sql = "select latitude, longitud, "+function+"("+metric+"), time from " + tableName + " where date" + "='" + date + "'" ;
 		sql += " group by latitude, longitud, time";
 		return sql;
 	}
 
-	private String buildRangeSpatialQuery(String dateInit, String dateEnd, String tableName, String function) {
-		String sql = "select latitude, longitud, "+function+"(ig), time from " + tableName + " where ";
+	private String buildRangeSpatialQuery(String dateInit, String dateEnd, String tableName, String function, String metric) {
+		String sql = "select latitude, longitud, "+function+"("+metric+"), time from " + tableName + " where ";
 		sql += "date >= '" + dateInit + "' and date <='" + dateEnd + "'";
 		sql += " group by latitude, longitud, time";
 		return sql;
 	}
-
-	/*private String buildPolygonInstSpatialQuery(String date, String tableName) {
-		String sql = "select geometry, sum(ig), time from " + tableName + " where date" + "='" + date + "'" ;
-		sql += " group by geometry, time";
-		return sql;
-	}*/
-
-	private String buildPolygonRangeSpatialQuery(String dateInit, String dateEnd, String tableName) {
-		String sql = "select geometry, sum(ig), time from " + tableName + " where ";
+	
+	
+	private String buildCoordRangeSpatialQuery(String dateInit, String dateEnd, String tableName) {
+		String sql = "select latitude, longitud, sum(aa_total) from " + tableName + " where ";
 		sql += "date >= '" + dateInit + "' and date <='" + dateEnd + "'";
-		sql += " group by geometry, time";
+		sql += " group by latitude, longitud";
 		return sql;
 	}
 
-	private String buildSumMatrixCellQuery(String date, String tableName, String function) {
-		String sql = "select x, y, "+function+"(ig), time from " + tableName + " where ";
+
+	private String buildAAMatrixCellQuery(String date, String tableName, String function, String metric) {
+		String sql = "select x, y, "+function+"("+metric+"), time from " + tableName + " where ";
 		sql += "date = '" + date +"' ";
 		sql += "group by x, y, time ";
-		sql += "order by "+function+"(ig) ASC";
+		sql += "order by "+function+"("+metric+") ASC";
 		return sql;
 	}
 
@@ -393,6 +434,12 @@ public class Loader {
 	}
 
 
+	private String buildSpatialGrainsQuery(String tableName) {
+		String sql = "select rid from " + tableName + " where rid >= 512";
+		return sql;
+	}
+
+
 	private String buildTimeStepsInRangeQuery(String date1, String date2, String timeGrain) {
 		String sql = "SELECT date_trunc('"+ timeGrain +"', dd)::date ";
 		sql += "FROM generate_series( '" + date1 + "'::timestamp, '" + date2 + "'::timestamp, ";
@@ -400,6 +447,25 @@ public class Loader {
 		return sql;
 	}
 
+
+	private String buildCountAccPerYearQuery(String tableName, int year) {
+		String sql = "SELECT x, y, count(*) from " + tableName + " where date like '" + year + "%' ";
+		sql += "group by x, y order by x, y";
+		return sql;
+	}
+
+	/*private String buildPolygonInstSpatialQuery(String date, String tableName, String metric) {
+		String sql = "select geometry, sum+"("+metric+"), time from " + tableName + " where date" + "='" + date + "'" ;
+		sql += " group by geometry, time";
+		return sql;
+	}*/
+	
+	private String buildPolygonRangeSpatialQuery(String dateInit, String dateEnd, String tableName, String metric) {
+		String sql = "select geometry, sum(ig), time from " + tableName + " where ";
+		sql += "date >= '" + dateInit + "' and date <='" + dateEnd + "'";
+		sql += " group by geometry, time";
+		return sql;
+	}
 
 	public static void main(String[] args) {}
 }

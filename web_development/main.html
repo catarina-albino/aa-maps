@@ -8,7 +8,8 @@
 		<link rel="stylesheet" href="script/leaflet/leaflet.draw.css" />
 		<link rel="stylesheet" href="script/leaflet/leaflet.contextmenu.css" />
 		<link rel="stylesheet" href="script/L.Control.ZoomDisplay.css" />	
-		<link rel="icon" type="image/gif" href="images/favicon.ico"/>
+		<link rel="icon" type="image/gif" href="./images/favicon.ico"/>
+		<!--<link rel="stylesheet" href="script/jquery-mobile/jquery.mobile-1.4.5.css" />-->
 		<script src="script/color/viridis.json"></script>
 		<script src="script/color/inferno.json"></script>
 		<script src="script/color/magma.json"></script>
@@ -34,6 +35,8 @@
 		<script type="text/javascript" src="timeComponent.js"></script>
 		<script type="text/javascript" src="normFunctions.js"></script>
 		<script type="text/javascript" src="slyComponent.js"></script>
+		<script type="text/javascript" src="confMatrixComponent.js"></script>
+		<script type="text/javascript" src="pnComponent.js"></script>
 		<script type="text/javascript" src="script/geostats.js"></script>
 		<script type="text/javascript" src="script/dat-gui/dat.gui.js"></script>
 		
@@ -69,8 +72,11 @@
 		</script>
 	</head>
 <body class="tundra">
+
 	<div id="map"></div>
+	
 	<div id="header" class="transparent">
+	
 		<div id="title">
 			<img src="./images/logo.png" alt="AAMaps" id="logo">
 			<p>AAMaps Prototype</p>
@@ -91,12 +97,18 @@
 			<img src="./images/marker3.png" border="0">
 			<span style="">Pin Events</span>
 		</a>
+		<a id="pn-button" class="button blue" onclick="getPN();" title="Press 6">
+			<img src="./images/pn.png" border="0">
+			<span style="">Pts Negros</span>
+		</a>
 		<section class="blue">
 			<p>AA-Maps</p>
 			<a class="switch on" rel="external" href="#" id="aamaps-button" title="Press 1" onclick="toggleVizMode()">&#xF011;</a>
 		<span></span>
 		</section>
 	</div>
+	
+	
 	<div id="opacitySlider" class="frame">
 	<ul class="slidee"></ul>
 	</div>
@@ -155,10 +167,49 @@
 		<option value="grid" selected>Grid</option>
 		<option value="polygon">Polygon</option>		
 	</select>
-	<select id="grid_size" onchange="changeGridSize()">
-		<option value="_1024" selected>1024</option>
-		<option value="_2048">2048</option>
-		<option value="_32768">32768</option>				
-	</select>
+	<select id="grid_size" onchange="changeGridSize()"></select>
+	<div id="pn-panel">
+	<h2>Pontos Negros</h2>
+	<div id="year-div">
+		<p>Choose year:</p>
+		<select name="years[]" id="pn-year" onclick="changeYear();" multiple>
+			<option value="all" id="option_all" selected>All</option>
+			<option value="2010">2010</option>
+			<option value="2011">2011</option>
+			<option value="2012">2012</option>
+		</select>
+		<p>
+		<!--<input type="radio" name="version" id="v1" value="1" onClick="getConfusionMatrix()">V1</input>
+		<input type="radio" name="version" id="v2" value="2" checked onClick="getConfusionMatrix()">V2 (AC >=5)</input></p>-->
+		<p>
+			<label for="threshold">T = </label>
+			<input type="text" id="threshold" readonly style="border:0; font-weight:bold;">
+		</p>
+ 
+		<div id="threshold-slider"></div>
+	</div>
+	<div id="cm-div">
+		<p>Confusion Matrix</p>
+		<table id="cm">
+			<tr>
+				<th style="background-color: #787878;"></th>
+				<th colspan="2">Pontos Negros</th>
+			</tr>
+			<tr>
+				<th rowspan="2">AA-maps</th>
+				<td id="a"></td>
+				<td id="b"></td>
+				<td id="precision"></td>
+			</tr>
+			<tr>
+				<td id="c"></td>
+				<td id="d"></td>
+			</tr>
+			<tr>
+				<td></td>
+				<td id="recall"></td>
+			</tr>
+		</table>
+	</div>
 </body>
 </html>

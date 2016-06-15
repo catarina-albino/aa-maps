@@ -1,11 +1,16 @@
 package accum_functions;
 
+import java.util.ArrayList;
+
+import aa_maps.FuncParam;
+
 public class Count implements IAccumFunc{
 	
 	private String name = "Count";
 	private String bdFunction = "count";
 	private int id;
 	private String descp = "Counts the number of events occured.";
+	private ArrayList<FuncParam> params;
 
 	public Count(int id){
 		this.id = id;
@@ -32,6 +37,10 @@ public class Count implements IAccumFunc{
 	
 	public String getName() {
 		return name;
+	}
+
+	public ArrayList<FuncParam> getParams() {
+		return params;
 	}
 
 }

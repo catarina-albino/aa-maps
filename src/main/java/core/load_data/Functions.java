@@ -213,10 +213,29 @@ public class Functions {
 			System.out.println(dates[i]);
 		}
 	}
+	
+	
+	public static String[] getInitAndLastDate(int year){	
+		Calendar cal = Calendar.getInstance();
+		cal.set(Calendar.YEAR, year);
+		cal.set(Calendar.MONTH, Calendar.JANUARY);
+		cal.set(Calendar.DAY_OF_MONTH, 1); 
+		Date init = cal.getTime();
+		String date1 = new SimpleDateFormat("yyyy-MM-dd").format(init);
+
+		cal.set(Calendar.MONTH, Calendar.DECEMBER);
+		cal.set(Calendar.DAY_OF_MONTH, 31); 
+		Date end = cal.getTime();
+		String date2 = new SimpleDateFormat("yyyy-MM-dd").format(end);
+		return new String[]{date1, date2};
+	}
+	
 
 	public static double[] calcPointInGrid(double refx, double refy, long row, long column, double width){
-		double cx = (refx + width*row) + width/2;
-		double cy = (refy + width*column) + width/2;
+		//double cx = (refx + width*row) + width/2;
+		//double cy = (refy + width*column) + width/2;
+		double cx = (refx + width*row);
+		double cy = (refy + width*column);
 		return new double[]{cx, cy};
 	}
 	
@@ -240,63 +259,5 @@ public class Functions {
 		
 		System.out.println(calcPointInGrid(-9.494435,37.01123,286,726,0.0050108828125)[0]);
 		System.out.println(calcPointInGrid(-9.494435,37.01123,286,726,0.0050108828125)[1]);
-		
-		
-		// BigDecimal res = BigDecimal.valueOf(0.0016);
-		//
-		// BigDecimal minY = BigDecimal.valueOf(18.5568999999999);
-		// System.out.println(minY);
-		// minY = minY.divide(res);
-		// System.out.println(minY);
-		// minY = minY.setScale(0, RoundingMode.FLOOR);
-		// System.out.println(minY);
-		// minY = minY.multiply(res);
-		// System.out.println(minY);
-		//
-		// BigDecimal y = BigDecimal.valueOf(19.4848);
-		//
-		// BigDecimal resDiv2 = res.divide(BigDecimal.valueOf(2));
-		//
-		// BigDecimal part1 = y.subtract(minY).divide(res);
-		// System.out.println(part1);
-		// BigDecimal part2 = part1.setScale(0, RoundingMode.FLOOR);
-		// System.out.println(part2);
-		//
-		// part2 = part2.multiply(res);
-		// System.out.println(part2);
-		//
-		// part2 = part2.add(minY);
-		// System.out.println(part2);
-		//
-		// part2 = part2.add(resDiv2);
-		// System.out.println(part2);
-
-		// Geometry g = new
-		// WKTReader().read("POINT (-73.75367781 41.45330531)");
-		// Coordinate min = new Coordinate(-159.3530138, 19.58396668);
-		// Geometry g = new WKTReader().read("POINT (36.247751 -115.323697)");
-		// Coordinate min = new Coordinate(-180, -90);
-		// System.out.println(g.toText());
-		// System.out.println(convertToUp(g, min, 1e-6,
-		// Zoom.Level_18.getGridSize(), Zoom.Level_10.getGridSize())
-		// .toText());
-
-		// System.out.println(convertToUp(g, min, 0.000001,
-		// (long) Math.pow(2, 26), (long) Math.pow(2, 18)).toText());
-		// Geometry temp = g;
-		// double precision = 0.000001;
-		// for (int i = 18; i > 0; i--) {
-		//
-		// Geometry r = convertToUp(temp, min, precision,
-		// Zoom.values()[i].getGridSize(),
-		// Zoom.values()[i - 1].getGridSize());
-		// System.out.println("-----------");
-		// System.out.println(Zoom.values()[i].name() + " " + temp.toText());
-		// System.out.println(Zoom.values()[i - 1].name() + " " + r.toText());
-		// temp = r;
-		// precision = precision * Zoom.values()[i].getGridSize()
-		// / Zoom.values()[i - 1].getGridSize();
-		// }
 	}
-
 }

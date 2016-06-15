@@ -2,11 +2,23 @@ package aa_maps;
 
 import java.util.ArrayList;
 import java.util.Hashtable;
-import accum_functions.*;
-import atten_functions.*;
+
+import accum_functions.Count;
+import accum_functions.IAccumFunc;
+import accum_functions.Max;
+import accum_functions.Min;
+import accum_functions.Sum;
+import atten_functions.ConstantGrowth;
+import atten_functions.ExponentialEaseIn;
+import atten_functions.HalfLifeDecay;
+import atten_functions.IAttenFunc;
+import atten_functions.Identity;
+import atten_functions.LinearDecay;
 import cern.colt.list.tdouble.DoubleArrayList;
 import cern.colt.list.tlong.LongArrayList;
 import cern.colt.matrix.tdouble.impl.SparseDoubleMatrix2D;
+import cern.colt.matrix.tobject.impl.SparseObjectMatrix2D;
+import server.Context;
 
 public class AAMaps {
 
@@ -18,7 +30,7 @@ public class AAMaps {
 	private IAttenFunc AttenFunction;
 	private ArrayList<IAccumFunc> accumFunctions;
 	private ArrayList<IAttenFunc> attenFunctions;
-	
+
 	@SuppressWarnings("unused")
 	private int curAttenID, curAccumID, nsteps, curStep;
 	@SuppressWarnings("unused")
@@ -29,7 +41,7 @@ public class AAMaps {
 	//private static final double SAVEPERCENT = 0.1;
 	//private long stepToSave;
 
-	
+
 	public AAMaps(){
 		addAccumFunctions();
 		addAttenFunctions();
@@ -39,7 +51,8 @@ public class AAMaps {
 		this.allMatrices = new Hashtable<String,SparseDoubleMatrix2D>(); 
 		curMatrix = createMatrix();
 	}
-	
+
+
 	private void addAccumFunctions() {
 		int index = 0;
 		accumFunctions = new ArrayList<IAccumFunc>();
@@ -48,43 +61,44 @@ public class AAMaps {
 		accumFunctions.add(new Count(index++));
 		accumFunctions.add(new Min(index++));
 	}
-	
-	
+
+
 	private void addAttenFunctions() {
 		int index = 0;
 		attenFunctions = new ArrayList<IAttenFunc>();
 		attenFunctions.add(new LinearDecay(index++));
 		attenFunctions.add(new ConstantGrowth(index++));
 		attenFunctions.add(new Identity(index++));
+		attenFunctions.add(new HalfLifeDecay(index++));
 		attenFunctions.add(new ExponentialEaseIn(index++));
 	}
-	
-	
+
+
 	public ArrayList<IAccumFunc> getAllAccumFunctions(){
 		return accumFunctions;
 	}
-	
+
 	public ArrayList<IAttenFunc> getAllAttenFunctions(){
 		return attenFunctions;
 	}
-	
+
 	public IAccumFunc getCurAccumFunction(){
 		return AccumFunction;
 	}
-	
+
 
 	private void initMinMax(){
 		this.maxEffect = Integer.MIN_VALUE;
 		this.minEffect = Integer.MAX_VALUE;
 	}
-	
+
 	/*private long calcStepToSave(){
 		return nsteps / (Math.round(SAVEPERCENT * nsteps));
 	}*/
-	
+
 
 	public void initMap(String dateInit, String dateEnd, ArrayList<String> dates, int gridSize, 
-					int attenFunction, int accumFunction){
+			int attenFunction, int accumFunction){
 		grid_dim = gridSize;
 		nextMatrix = createMatrix();
 		this.endDate = dateEnd;
@@ -94,7 +108,7 @@ public class AAMaps {
 		setAttenuationFunction(attenFunction);
 		setAccumulationFunction(accumFunction);
 	}
-	
+
 	public ArrayList<String> getDates(){
 		return dates;
 	}
@@ -108,14 +122,13 @@ public class AAMaps {
 	}
 
 	public void checkChanges(){
-		System.out.println("\n\n"+newContext);
 		if (newContext){
 			clearPrevMatrix();
 			newContext = false;
 		}
 	}
 
-	
+
 	public void setAttenuationFunction(int id){
 		this.AttenFunction = attenFunctions.get(id);
 		if (curAttenID != id) newContext = true;
@@ -123,18 +136,18 @@ public class AAMaps {
 		curAttenID = id;
 	}
 
-	
+
 	public void setAccumulationFunction(int id){
 		this.AccumFunction = accumFunctions.get(id);
 		if (curAccumID != id) newContext = true;
 		else newContext = false;
 		curAccumID = id;		
 	}
-	
+
 	public IAccumFunc getAccumulationFunction(){
 		return this.AccumFunction;
 	}
-	
+
 
 	public boolean hasPrevMatrix(){
 		return (!lastMatrixDate.equals(""));
@@ -149,8 +162,8 @@ public class AAMaps {
 	public SparseDoubleMatrix2D createMatrix(){
 		return new SparseDoubleMatrix2D(grid_dim, grid_dim);
 	}
-	
-	
+
+
 	public static SparseDoubleMatrix2D createDimMatrix(int dim){
 		return new SparseDoubleMatrix2D(dim, dim);
 	}
@@ -218,7 +231,7 @@ public class AAMaps {
 		}
 		saveCurMatrix();
 	}
-	
+
 
 	public void saveCurMatrix(){
 		/*if (curStep % stepToSave == 0) {
@@ -234,8 +247,65 @@ public class AAMaps {
 
 	public void applyAAFunctions(){
 		/** 1 - Attenuate the previous matrix **/
-		attenuateValues();
+		if (AttenFunction.isOn()) attenuateValues();
 		/** 2 - Aggregate the 2 matrix to form the final one **/
 		accumulateValues();
+	}
+
+	
+
+	public ConfusionMatrix getConfusionMatrix(Context context, int version, boolean percentage, double threshold, 
+			int sgrain, SparseDoubleMatrix2D aaMatrix, SparseDoubleMatrix2D pnMatrix, SparseDoubleMatrix2D aaCountMatrix){
+
+		boolean isAAPN = false;
+		ConfusionMatrix cm = new ConfusionMatrix(context, 0);
+
+		for (int x = 0; x < sgrain; x++) {
+			for (int y = 0; y < sgrain; y++) {
+				boolean isPN = (pnMatrix.getQuick(x, y) > 0);
+
+				isAAPN = (aaMatrix.getQuick(x, y) >= threshold);
+				if (version == 2) isAAPN = (isAAPN && (aaCountMatrix.getQuick(x, y) >= 5));
+				if (isAAPN) {
+					if (isPN) cm.addTPos(x,y); // True Positive
+					else cm.addFPos(x,y); // False Positive 
+				}
+				else {
+					if (isPN) cm.addFNeg(x,y); // False Negative
+					else cm.addTNeg(x, y); //True Negative
+				}
+			}
+		}
+		cm.calcResults();
+		return cm;
+	}
+	
+	
+	@SuppressWarnings({ "unchecked"})
+	public ConfusionMatrix getConfusionMatrixV2(Context context, int version, boolean percentage, double threshold, 
+			int sgrain, SparseDoubleMatrix2D aaMatrix, SparseObjectMatrix2D pnMatrix, SparseDoubleMatrix2D aaCountMatrix,
+			int pnCount, DoubleArrayList allPN){
+		boolean isAAPN = false;
+		ConfusionMatrix cm = new ConfusionMatrix(context, pnCount);
+		cm.setAllPNCoords(allPN);
+		
+		for (int x = 0; x < sgrain; x++) {
+			for (int y = 0; y < sgrain; y++) {
+				ArrayList<Integer> pnIDList = (ArrayList<Integer>) pnMatrix.getQuick(x, y);
+				boolean isPN = (pnIDList != null);
+
+				isAAPN = (aaMatrix.getQuick(x, y) >= threshold);
+				if (version == 2) isAAPN = (isAAPN && (aaCountMatrix.getQuick(x, y) >= 5));
+				if (isAAPN) {
+					if (isPN) cm.addTPosID(pnIDList);
+					else cm.addFPos(x,y); // False Positive 
+				}
+				else {
+					if (!isPN) cm.addTNeg(x, y); //True Negative
+				}
+			}
+		}
+		cm.calcResults();
+		return cm;
 	}
 }
